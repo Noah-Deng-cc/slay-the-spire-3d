@@ -58,8 +58,9 @@ SS3D reward <index>
 ### 当前明确缺口
 
 - 3D 战斗场景、玩家模型、敌人模型、卡牌立绘、动画、粒子和音频资源：仓库中不存在，当前不可用。
-- 当前 Game Target 已通过编译；Editor Target 需要本机安装 Visual Studio 的 `.NET Framework SDK 4.6+`，否则 UE5.8 的 `SwarmInterface` 无法加载。
-- 当前尚未完成 Cook/Stage/Pack 和最终可执行包验收。
+- `SS3DEditor` 和 Game Target 均已通过 UE5.8 编译。
+- 已完成 Windows Cook/Stage/Pak/Archive，归档目录为 `StagedBuild/Windows`。
+- 已运行归档程序的 `SS3D demo` 回归，日志输出 `DEMO PASS：三层尖塔完整通关`。
 
 ## 📁 项目结构
 
@@ -94,7 +95,8 @@ Content/
 - [x] P2: 三层尖塔地图生成 + 进入游戏后的路径选择
 - [x] P3: 战斗垂直切片 + 节点进入和结算
 - [x] P4: 奖励、商店、事件、休息、藏品和药水
-- [ ] P5: Editor/Cook 验收 + 正式 UMG 地图/战斗界面
+- [x] P5: Editor/Cook/打包验收 + 纯代码地图/战斗流程
+- [ ] P5: 正式 UMG 地图/战斗界面
 - [ ] P6: 3D 战斗表现 + UMG 打磨
 
 ---
