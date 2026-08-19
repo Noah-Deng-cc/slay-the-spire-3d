@@ -290,8 +290,10 @@ void ASS3DGameMode::RunDemo()
 {
     SelectedCharacter = TEXT("odette");
     StartRun(20260819);
+    const TArray<FRelicData> DemoRelics = FRelicLibrary::GetAllRelics();
+    if (DemoRelics.Num() > 0) Relics.Add(DemoRelics[0]);
     const TArray<FPotionData> DemoPotions = FPotionLibrary::GetAllPotions();
-    if (DemoPotions.Num() > 0) Potions.Add(DemoPotions[3]);
+    for (int32 Index = 0; Index < 10 && DemoPotions.IsValidIndex(3); ++Index) Potions.Add(DemoPotions[3]);
     for (int32 Step = 0; Step < 600 && !MapManager->GetMapState().bRunComplete; ++Step)
     {
         if (bCombatActive)
@@ -299,14 +301,16 @@ void ASS3DGameMode::RunDemo()
             const FCombatSnapshot& Snapshot = CombatManager->GetSnapshot();
             if (Snapshot.Phase == ECombatPhase::PlayerTurn)
             {
-                if (Snapshot.PlayerHp < 30 && Potions.Num() > 0)
+                if (Snapshot.PlayerHp <= 40 && Potions.Num() > 0)
                 {
                     CombatManager->UsePotion(0);
                     HandleCombatResult();
                     continue;
                 }
                 int32 SelectedIndex = INDEX_NONE;
-                if (Snapshot.PlayerHp < Snapshot.PlayerMaxHp * 0.6f && Snapshot.EnemyIntentDamage >= 10)
+                if (Snapshot.EnemyIntentDamage >= 6
+                    && Snapshot.PlayerHp < Snapshot.PlayerMaxHp * 0.75f
+                    && Snapshot.PlayerBlock < Snapshot.EnemyIntentDamage)
                 {
                     for (int32 Index = 0; Index < Snapshot.Hand.Num(); ++Index)
                     {
@@ -319,6 +323,23 @@ void ASS3DGameMode::RunDemo()
                             }
                             if (SelectedIndex != INDEX_NONE) break;
                         }
+                    }
+                }
+                if (SelectedIndex == INDEX_NONE && Snapshot.PlayerStrength < 6)
+                {
+                    for (int32 Index = 0; Index < Snapshot.Hand.Num(); ++Index)
+                    {
+                        const FCardData& Card = Snapshot.Hand[Index];
+                        if (Card.Cost > Snapshot.Energy) continue;
+                        for (const FCardEffect& Effect : Card.Effects)
+                        {
+                            if (Effect.Type == ECardEffectType::Strength)
+                            {
+                                SelectedIndex = Index;
+                                break;
+                            }
+                        }
+                        if (SelectedIndex != INDEX_NONE) break;
                     }
                 }
                 for (int32 Index = 0; Index < Snapshot.Hand.Num(); ++Index)
@@ -346,7 +367,26 @@ void ASS3DGameMode::RunDemo()
 
         if (PendingRewards.Num() > 0)
         {
-            SelectReward(0);
+            int32 BestRewardIndex = 0;
+            int32 BestRewardScore = MIN_int32;
+            for (int32 Index = 0; Index < PendingRewards.Num(); ++Index)
+            {
+                const FCardData& Card = PendingRewards[Index];
+                int32 Score = 0;
+                for (const FCardEffect& Effect : Card.Effects)
+                {
+                    if (Effect.Type == ECardEffectType::Strength) Score += 30 + Effect.Value * 5;
+                    else if (Effect.Type == ECardEffectType::Damage) Score += Effect.Value * 2;
+                    else if (Effect.Type == ECardEffectType::Draw) Score += Effect.Value * 3;
+                    else if (Effect.Type == ECardEffectType::Block) Score += Effect.Value;
+                }
+                if (Score > BestRewardScore)
+                {
+                    BestRewardScore = Score;
+                    BestRewardIndex = Index;
+                }
+            }
+            SelectReward(BestRewardIndex);
             continue;
         }
 
