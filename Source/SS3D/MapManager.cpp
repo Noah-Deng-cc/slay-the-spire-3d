@@ -17,6 +17,19 @@ void UMapManager::GenerateMap(int32 Seed)
         BuildAct(ActIndex, Random);
     }
 
+    for (FMapNodeData& Node : State.Nodes)
+    {
+        if (Node.NodeType != EMapNodeType::Boss || Node.ActIndex >= ActCount - 1) continue;
+        for (const FMapNodeData& NextNode : State.Nodes)
+        {
+            if (NextNode.ActIndex == Node.ActIndex + 1 && NextNode.NodeType == EMapNodeType::Start)
+            {
+                Node.NextNodeIds.AddUnique(NextNode.NodeId);
+                break;
+            }
+        }
+    }
+
     int32 FirstStartId = INDEX_NONE;
     for (const FMapNodeData& Node : State.Nodes)
     {
