@@ -1,7 +1,10 @@
 #include "SS3DGameMode.h"
 
 #include "CombatManager.h"
+#include "BattleHUD.h"
 #include "SS3DPlayerController.h"
+#include "Blueprint/UserWidget.h"
+#include "GameFramework/PlayerController.h"
 
 ASS3DGameMode::ASS3DGameMode()
 {
@@ -13,6 +16,24 @@ void ASS3DGameMode::BeginPlay()
     Super::BeginPlay();
     MapManager = NewObject<UMapManager>(this);
     CombatManager = NewObject<UCombatManager>(this);
+
+    if (APlayerController* PlayerController = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+    {
+        RuntimeHUD = CreateWidget<USBattleHUD>(PlayerController, USBattleHUD::StaticClass());
+        if (RuntimeHUD)
+        {
+            RuntimeHUD->InitializeWithGameMode(this);
+            RuntimeHUD->AddToViewport(100);
+            Log(TEXT("运行时 HUD 已创建，鼠标操作已启用。"));
+
+            FInputModeGameAndUI InputMode;
+            InputMode.SetWidgetToFocus(RuntimeHUD->TakeWidget());
+            InputMode.SetHideCursorDuringCapture(false);
+            PlayerController->SetInputMode(InputMode);
+            PlayerController->bShowMouseCursor = true;
+        }
+    }
+
     Log(TEXT("记忆尖塔已启动。请选择角色：character odette"));
 }
 
@@ -36,6 +57,12 @@ void ASS3DGameMode::StartRun(int32 Seed)
 
 void ASS3DGameMode::ExecuteCommand(const FString& CommandLine)
 {
+    ExecuteCommandInternal(CommandLine);
+    NotifyStateChanged();
+}
+
+void ASS3DGameMode::ExecuteCommandInternal(const FString& CommandLine)
+{
     TArray<FString> Parts;
     CommandLine.ParseIntoArrayWS(Parts);
     if (Parts.Num() == 0) return;
@@ -56,6 +83,8 @@ void ASS3DGameMode::ExecuteCommand(const FString& CommandLine)
         return;
     }
     if (Command == TEXT("demo")) { RunDemo(); return; }
+    if (Command == TEXT("effects")) { RunEffectsRegression(); return; }
+    if (Command == TEXT("nodes")) { RunNodeRegression(); return; }
     if (!bRunStarted)
     {
         Log(TEXT("请先输入 new [seed] 开始游戏。"));
@@ -81,9 +110,14 @@ void ASS3DGameMode::ExecuteCommand(const FString& CommandLine)
     Log(TEXT("未知命令。输入 help 查看命令。"));
 }
 
+void ASS3DGameMode::NotifyStateChanged()
+{
+    OnStateChanged.Broadcast();
+}
+
 void ASS3DGameMode::PrintHelp() const
 {
-    Log(TEXT("命令：character odette | new [seed] | demo | status | map | select <nodeId> | hand | play <cardIndex> | end | potion <index> | reward <index> | shop | buy card/relic/potion/remove <index> | rest heal/upgrade | event 0/1"));
+    Log(TEXT("命令：character odette | new [seed] | demo | effects | nodes | status | map | select <nodeId> | hand | play <cardIndex> | end | potion <index> | reward <index> | shop | buy card/relic/potion/remove <index> | rest heal/upgrade | event 0/1"));
 }
 
 void ASS3DGameMode::PrintStatus() const
@@ -200,7 +234,6 @@ void ASS3DGameMode::HandleCombatResult()
     bCombatActive = false;
     PendingRewards = FCardLibrary::GetAllCards();
     while (PendingRewards.Num() > 3) PendingRewards.RemoveAt(0);
-    CompleteCurrentNode();
     Log(FString::Printf(TEXT("战斗胜利，获得 %d 金币。"), CombatManager->GetGoldReward()));
     PrintRewards();
 }
@@ -213,6 +246,12 @@ void ASS3DGameMode::PrintRewards() const
 
 void ASS3DGameMode::SelectReward(int32 Index)
 {
+    const FMapNodeData Current = MapManager->GetCurrentNode();
+    if (PendingRewards.Num() == 0 || Current.bCompleted)
+    {
+        Log(TEXT("当前没有可领取的战斗奖励。"));
+        return;
+    }
     if (Index >= 0 && PendingRewards.IsValidIndex(Index)) Deck.Add(PendingRewards[Index]);
     PendingRewards.Reset();
     CompleteCurrentNode();
@@ -231,6 +270,12 @@ void ASS3DGameMode::PrintShop() const
 
 void ASS3DGameMode::BuyShopItem(const FString& Args)
 {
+    const FMapNodeData Current = MapManager->GetCurrentNode();
+    if (Current.NodeType != EMapNodeType::Shop || Current.bCompleted)
+    {
+        Log(TEXT("当前不在可操作的商店节点。"));
+        return;
+    }
     TArray<FString> Parts;
     Args.ParseIntoArrayWS(Parts);
     if (Parts.Num() < 1) { PrintShop(); return; }
@@ -247,6 +292,12 @@ void ASS3DGameMode::BuyShopItem(const FString& Args)
 
 void ASS3DGameMode::HandleRest(const FString& Args)
 {
+    const FMapNodeData Current = MapManager->GetCurrentNode();
+    if (Current.NodeType != EMapNodeType::Rest || Current.bCompleted)
+    {
+        Log(TEXT("当前不在可操作的休息节点。"));
+        return;
+    }
     if (Args.ToLower() == TEXT("heal")) PlayerHp = FMath::Min(PlayerMaxHp, PlayerHp + FMath::Max(1, PlayerMaxHp * 30 / 100));
     else if (Args.ToLower() == TEXT("upgrade") && Deck.Num() > 0)
     {
@@ -262,6 +313,12 @@ void ASS3DGameMode::HandleRest(const FString& Args)
 
 void ASS3DGameMode::HandleEvent(const FString& Args)
 {
+    const FMapNodeData Current = MapManager->GetCurrentNode();
+    if (Current.NodeType != EMapNodeType::Event || Current.bCompleted)
+    {
+        Log(TEXT("当前不在可操作的事件节点。"));
+        return;
+    }
     if (Args == TEXT("0")) PlayerHp = FMath::Min(PlayerMaxHp, PlayerHp + 12);
     else if (Args == TEXT("1")) Gold += 40;
     else { Log(TEXT("输入 event 0 或 event 1。")); return; }
@@ -414,6 +471,144 @@ void ASS3DGameMode::RunDemo()
     }
     if (MapManager->GetMapState().bRunComplete) Log(TEXT("DEMO PASS：三层尖塔完整通关。"));
     else Log(TEXT("DEMO FAIL：未能在步数限制内通关。"));
+}
+
+void ASS3DGameMode::RunEffectsRegression()
+{
+    auto MakeEffect = [](ECardEffectType Type, int32 Value, bool bExhaust = false)
+    {
+        FCardEffect Result;
+        Result.Type = Type;
+        Result.Value = Value;
+        Result.bExhaust = bExhaust;
+        return Result;
+    };
+    auto MakeCard = [](const TCHAR* Id, int32 Cost, const TArray<FCardEffect>& Effects)
+    {
+        FCardData Result;
+        Result.Id = Id;
+        Result.Name = FText::FromString(Id);
+        Result.Cost = Cost;
+        Result.Type = ECardType::Skill;
+        Result.Rarity = ECardRarity::Common;
+        Result.Effects = Effects;
+        return Result;
+    };
+    auto MakeDeck = [](const FCardData& Card)
+    {
+        TArray<FCardData> Result;
+        for (int32 Index = 0; Index < 5; ++Index) Result.Add(Card);
+        return Result;
+    };
+    auto MakeEnemy = [](int32 Hp, TArray<FEnemyAction> Actions)
+    {
+        FEnemyDefinition Result;
+        Result.Id = TEXT("effect_test_enemy");
+        Result.Name = FText::FromString(TEXT("效果测试敌人"));
+        Result.MaxHp = Hp;
+        Result.Actions = MoveTemp(Actions);
+        return Result;
+    };
+    auto MakeAction = [](EEnemyActionType Type, int32 Value, const TCHAR* Label)
+    {
+        FEnemyAction Result;
+        Result.Type = Type;
+        Result.Value = Value;
+        Result.Label = FText::FromString(Label);
+        return Result;
+    };
+
+    bool bAllPassed = true;
+    auto Check = [this, &bAllPassed](bool bCondition, const TCHAR* Name)
+    {
+        bAllPassed &= bCondition;
+        Log(FString::Printf(TEXT("EFFECT %s: %s"), Name, bCondition ? TEXT("PASS") : TEXT("FAIL")));
+    };
+
+    UCombatManager* TestCombat = NewObject<UCombatManager>(this);
+
+    TArray<FCardEffect> VulnerableEffects;
+    VulnerableEffects.Add(MakeEffect(ECardEffectType::Vulnerable, 2));
+    VulnerableEffects.Add(MakeEffect(ECardEffectType::Damage, 10));
+    TestCombat->SetDeck(MakeDeck(MakeCard(TEXT("test_vulnerable"), 0, VulnerableEffects)));
+    TestCombat->SetRelics({});
+    TestCombat->SetPotions({});
+    TestCombat->SetPlayerHealth(80, 80);
+    TestCombat->BeginCombat(MakeEnemy(100, {}));
+    TestCombat->PlayCard(0);
+    Check(TestCombat->GetSnapshot().EnemyHp == 85 && TestCombat->GetSnapshot().EnemyVulnerable == 2, TEXT("Vulnerable increases damage"));
+
+    TArray<FCardEffect> WeakEffects;
+    WeakEffects.Add(MakeEffect(ECardEffectType::Weak, 2));
+    TestCombat->SetDeck(MakeDeck(MakeCard(TEXT("test_weak"), 0, WeakEffects)));
+    TestCombat->SetPlayerHealth(80, 80);
+    TestCombat->BeginCombat(MakeEnemy(100, {MakeAction(EEnemyActionType::Attack, 10, TEXT("攻击"))}));
+    TestCombat->PlayCard(0);
+    TestCombat->EndPlayerTurn();
+    Check(TestCombat->GetSnapshot().PlayerHp == 73 && TestCombat->GetSnapshot().EnemyWeak == 1, TEXT("Weak reduces enemy attack"));
+
+    TArray<FCardEffect> PoisonEffects;
+    PoisonEffects.Add(MakeEffect(ECardEffectType::Poison, 3));
+    TestCombat->SetDeck(MakeDeck(MakeCard(TEXT("test_poison"), 0, PoisonEffects)));
+    TestCombat->SetPlayerHealth(80, 80);
+    TestCombat->BeginCombat(MakeEnemy(100, {}));
+    TestCombat->PlayCard(0);
+    TestCombat->EndPlayerTurn();
+    Check(TestCombat->GetSnapshot().EnemyHp == 97 && TestCombat->GetSnapshot().EnemyPoison == 2, TEXT("Poison ticks and decays"));
+
+    FCardData EmptyCard = MakeCard(TEXT("test_empty"), 0, {});
+    TestCombat->SetDeck(MakeDeck(EmptyCard));
+    TestCombat->SetPlayerHealth(80, 80);
+    TestCombat->BeginCombat(MakeEnemy(100, {MakeAction(EEnemyActionType::Buff, 2, TEXT("强化")), MakeAction(EEnemyActionType::Attack, 10, TEXT("攻击"))}));
+    TestCombat->EndPlayerTurn();
+    TestCombat->EndPlayerTurn();
+    Check(TestCombat->GetSnapshot().PlayerHp == 68 && TestCombat->GetSnapshot().EnemyStrength == 2, TEXT("Enemy Buff grants strength"));
+
+    FPotionData FirePotion;
+    FirePotion.Id = TEXT("test_fire_potion");
+    FirePotion.Name = FText::FromString(TEXT("测试火焰药水"));
+    FirePotion.Type = EPotionType::Damage;
+    FirePotion.Value = 20;
+    TestCombat->SetDeck(MakeDeck(EmptyCard));
+    TestCombat->SetRelics({FRelicLibrary::GetAllRelics()[0]});
+    TestCombat->SetPotions({FirePotion});
+    TestCombat->SetPlayerHealth(50, 80);
+    TestCombat->BeginCombat(MakeEnemy(20, {}));
+    TestCombat->UsePotion(0);
+    Check(TestCombat->GetSnapshot().Phase == ECombatPhase::Victory && TestCombat->GetSnapshot().PlayerHp == 56, TEXT("Potion kill triggers victory relic"));
+
+    Check(FCardLibrary::GetAllCards().ContainsByPredicate([](const FCardData& Card) { return Card.Id == TEXT("shockwave"); }), TEXT("Weak/Vulnerable card is available"));
+    Check(FCardLibrary::GetAllCards().ContainsByPredicate([](const FCardData& Card) { return Card.Id == TEXT("memory_rot"); }), TEXT("Poison card is available"));
+    Log(bAllPassed ? TEXT("EFFECTS PASS：易伤、虚弱、中毒、敌方 Buff、药水击杀和胜利藏品均正常。") : TEXT("EFFECTS FAIL：至少一个战斗效果回归失败。"));
+}
+
+void ASS3DGameMode::RunNodeRegression()
+{
+    TSet<uint8> SeenTypes;
+    bool bAllPassed = true;
+    for (int32 Seed = 1; Seed <= 64; ++Seed)
+    {
+        UMapManager* TestMap = NewObject<UMapManager>(this);
+        TestMap->GenerateMap(Seed);
+        const FMapRunState& State = TestMap->GetMapState();
+        for (const FMapNodeData& Node : State.Nodes)
+        {
+            SeenTypes.Add(static_cast<uint8>(Node.NodeType));
+            if (Node.NodeType != EMapNodeType::Start && Node.NodeType != EMapNodeType::Boss)
+            {
+                bool bHasIncoming = false;
+                for (const FMapNodeData& Source : State.Nodes) bHasIncoming |= Source.NextNodeIds.Contains(Node.NodeId);
+                bAllPassed &= bHasIncoming;
+            }
+            if (Node.NodeType != EMapNodeType::Boss) bAllPassed &= Node.NextNodeIds.Num() > 0;
+        }
+    }
+
+    const TArray<EMapNodeType> RequiredTypes = {EMapNodeType::Start, EMapNodeType::Combat, EMapNodeType::Reward, EMapNodeType::Shop,
+        EMapNodeType::Event, EMapNodeType::Elite, EMapNodeType::Rest, EMapNodeType::Boss};
+    for (EMapNodeType Type : RequiredTypes) bAllPassed &= SeenTypes.Contains(static_cast<uint8>(Type));
+    Log(bAllPassed ? TEXT("NODES PASS：三层地图的起点、战斗、奖励、商店、事件、精英、休息和 Boss 均生成且连接合法。")
+        : TEXT("NODES FAIL：地图节点类型覆盖或连接合法性检查失败。"));
 }
 
 void ASS3DGameMode::Log(const FString& Message) const

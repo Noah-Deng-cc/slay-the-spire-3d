@@ -68,6 +68,10 @@ TArray<FCardData> FCardLibrary::GetAllCards()
         TEXT("获得 30 点护盾。消耗。"), {Effect(ECardEffectType::Block, 30, true)}));
     Cards.Add(Card(TEXT("limit_break"), TEXT("突破极限"), 1, ECardType::Skill, ECardRarity::Rare,
         TEXT("获得 3 点力量。"), {Effect(ECardEffectType::Strength, 3)}));
+    Cards.Add(Card(TEXT("shockwave"), TEXT("震荡波"), 2, ECardType::Skill, ECardRarity::Uncommon,
+        TEXT("施加 2 层易伤和 2 层虚弱。消耗。"), {Effect(ECardEffectType::Vulnerable, 2), Effect(ECardEffectType::Weak, 2, true)}));
+    Cards.Add(Card(TEXT("memory_rot"), TEXT("记忆腐蚀"), 1, ECardType::Skill, ECardRarity::Uncommon,
+        TEXT("施加 5 层中毒。"), {Effect(ECardEffectType::Poison, 5)}));
     Cards.Add(Card(TEXT("whirlwind"), TEXT("旋风斩"), 0, ECardType::Attack, ECardRarity::Rare,
         TEXT("消耗所有能量，每点造成 5 点伤害。"), {Effect(ECardEffectType::Damage, 5)}));
     return Cards;

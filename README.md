@@ -32,11 +32,11 @@ https://github.com/Noah-Deng-cc/slay-the-spire-3d
 ### 当前实现基线
 
 - `Source/SS3D` 是 UE5 C++ 模块。
-- 当前已有战斗后端、地图生成和控制台驱动的完整三层循环；正式 UMG 仍待实现。
+- 当前已有战斗后端、地图生成、运行时 Slate/UMG HUD 和控制台驱动的完整三层循环。
 - 第一角色奥黛塔的初始卡组为：打击 x5、防御 x4、痛击 x1，共 10 张；每回合 3 点能量。
 - 主要边界：`GameInstance` / 运行状态、`MapManager`（地图逻辑）、`CombatManager`（战斗逻辑）、UMG Widget（表现层）。
 
-### 纯代码运行入口
+### 运行入口
 
 在 UE5 PIE 的控制台执行：
 
@@ -51,13 +51,13 @@ SS3D end
 SS3D reward <index>
 ```
 
-输入 `SS3D demo` 可运行内置自动策略，自动选择路线、处理战斗和奖励，并输出三层通关结果，用于后端回归验收。
+当前还提供三条回归命令：`SS3D nodes` 检查三层地图的节点类型覆盖和连接合法性；`SS3D effects` 检查易伤、虚弱、中毒、敌方 Buff、药水击杀和胜利藏品；`SS3D demo` 使用内置自动策略，自动选择路线、处理战斗和奖励，并输出三层通关结果。
 
-其他命令：`SS3D status`、`SS3D potion <index>`、`SS3D shop`、`SS3D buy card/relic/potion/remove <index>`、`SS3D rest heal/upgrade`、`SS3D event 0/1`。当前版本不依赖 3D 模型和 UMG，可通过 UE 日志完整验证游戏循环。
+其他命令：`SS3D status`、`SS3D potion <index>`、`SS3D shop`、`SS3D buy card/relic/potion/remove <index>`、`SS3D rest heal/upgrade`、`SS3D event 0/1`。当前版本已接入运行时 Slate/UMG HUD，不依赖外部美术资源。
 
 ### 当前明确缺口
 
-- 3D 战斗场景、玩家模型、敌人模型、卡牌立绘、动画、粒子和音频资源：仓库中不存在，当前不可用。
+- 3D 战斗场景、玩家模型、敌人模型、卡牌立绘、动画、粒子和音频资源：仓库中不存在，当前以规则和 UI 验证为主。
 - `SS3DEditor` 和 Game Target 均已通过 UE5.8 编译。
 - 已完成 Windows Cook/Stage/Pak/Archive，归档目录为 `StagedBuild/Windows`。
 - 已运行归档程序的 `SS3D demo` 回归，日志输出 `DEMO PASS：三层尖塔完整通关`。

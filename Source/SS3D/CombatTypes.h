@@ -257,6 +257,9 @@ struct FCombatSnapshot
     int32 EnemyWeak = 0;
 
     UPROPERTY(BlueprintReadOnly)
+    int32 EnemyStrength = 0;
+
+    UPROPERTY(BlueprintReadOnly)
     int32 EnemyPoison = 0;
 
     UPROPERTY(BlueprintReadOnly)

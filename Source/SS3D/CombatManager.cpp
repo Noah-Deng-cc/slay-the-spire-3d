@@ -53,6 +53,7 @@ void UCombatManager::BeginCombat(const FEnemyDefinition& InEnemy)
     EnemyActionIndex = 0;
     EnemyVulnerable = 0;
     EnemyWeak = 0;
+    EnemyStrength = 0;
     EnemyPoison = 0;
     State = FCombatSnapshot();
     State.Phase = ECombatPhase::PlayerTurn;
@@ -140,9 +141,7 @@ bool UCombatManager::PlayCard(int32 HandIndex)
     ApplyRelicTrigger(ERelicTrigger::CardPlayed);
     if (State.EnemyHp <= 0)
     {
-        State.Phase = ECombatPhase::Victory;
-        ApplyRelicTrigger(ERelicTrigger::CombatVictory);
-        AddLog(FText::Format(NSLOCTEXT("Combat", "Victory", "击败 {0}。"), Enemy.Name), 1);
+        EnterVictory();
     }
     PublishState();
     return true;
@@ -175,7 +174,7 @@ bool UCombatManager::UsePotion(int32 PotionIndex)
     Potions.RemoveAt(PotionIndex);
     State.Potions = Potions;
     AddLog(FText::Format(NSLOCTEXT("Combat", "UsePotion", "使用药水：{0}。"), Potion.Name), 1);
-    if (State.EnemyHp <= 0) State.Phase = ECombatPhase::Victory;
+    if (State.EnemyHp <= 0) EnterVictory();
     PublishState();
     return true;
 }
@@ -205,7 +204,7 @@ void UCombatManager::ResolveEnemyTurn()
     }
     if (State.EnemyHp <= 0)
     {
-        State.Phase = ECombatPhase::Victory;
+        EnterVictory();
         PublishState();
         return;
     }
@@ -215,7 +214,7 @@ void UCombatManager::ResolveEnemyTurn()
     switch (Action.Type)
     {
     case EEnemyActionType::Attack:
-        TakeDamage(FMath::Max(0, Action.Value - (EnemyWeak > 0 ? 2 : 0)));
+        TakeDamage(GetEnemyAttackDamage(Action.Value));
         break;
     case EEnemyActionType::Block:
         EnemyBlock += Action.Value;
@@ -223,10 +222,10 @@ void UCombatManager::ResolveEnemyTurn()
         break;
     case EEnemyActionType::AttackAndBlock:
         EnemyBlock += Action.Value / 2;
-        TakeDamage(Action.Value);
+        TakeDamage(GetEnemyAttackDamage(Action.Value));
         break;
     case EEnemyActionType::Buff:
-        EnemyWeak = FMath::Max(0, EnemyWeak - Action.Value);
+        EnemyStrength += Action.Value;
         AddLog(FText::Format(NSLOCTEXT("Combat", "EnemyBuff", "{0} 使用 {1}。"), Enemy.Name, Action.Label), 1);
         break;
     default:
@@ -262,6 +261,7 @@ void UCombatManager::ApplyRelicTrigger(ERelicTrigger Trigger)
     {
         if (Relic.Trigger != Trigger) continue;
         if (Trigger == ERelicTrigger::CombatStart && Relic.Id == TEXT("iron_ring")) State.PlayerBlock += Relic.Value;
+        if (Trigger == ERelicTrigger::CombatStart && Relic.Id == TEXT("lantern")) State.Energy += Relic.Value;
         if (Trigger == ERelicTrigger::CombatVictory && Relic.Id == TEXT("burning_blood")) State.PlayerHp = FMath::Min(State.PlayerMaxHp, State.PlayerHp + Relic.Value);
         if (Trigger == ERelicTrigger::TurnStart && Relic.Id == TEXT("lantern") && State.Turn == 1) State.Energy += Relic.Value;
         if (Trigger == ERelicTrigger::CardPlayed && Relic.Id == TEXT("shuriken")) Strength += Relic.Value;
@@ -282,6 +282,16 @@ void UCombatManager::TakeDamage(int32 Amount)
     }
 }
 
+int32 UCombatManager::GetEnemyAttackDamage(int32 BaseDamage) const
+{
+    int32 Damage = FMath::Max(0, BaseDamage + EnemyStrength);
+    if (EnemyWeak > 0)
+    {
+        Damage = FMath::FloorToInt(Damage * 0.75f);
+    }
+    return Damage;
+}
+
 void UCombatManager::UpdateEnemyIntent()
 {
     if (Enemy.Actions.Num() == 0)
@@ -291,7 +301,7 @@ void UCombatManager::UpdateEnemyIntent()
         return;
     }
     const FEnemyAction& Action = Enemy.Actions[EnemyActionIndex % Enemy.Actions.Num()];
-    State.EnemyIntentDamage = Action.Type == EEnemyActionType::Block ? 0 : Action.Value;
+    State.EnemyIntentDamage = Action.Type == EEnemyActionType::Block ? 0 : GetEnemyAttackDamage(Action.Value);
     State.EnemyIntentLabel = Action.Label;
 }
 
@@ -319,10 +329,19 @@ void UCombatManager::PublishState()
     State.EnemyBlock = EnemyBlock;
     State.EnemyVulnerable = EnemyVulnerable;
     State.EnemyWeak = EnemyWeak;
+    State.EnemyStrength = EnemyStrength;
     State.EnemyPoison = EnemyPoison;
     State.Relics = Relics;
     State.Potions = Potions;
     OnCombatStateChanged.Broadcast(State);
+}
+
+void UCombatManager::EnterVictory()
+{
+    if (State.Phase == ECombatPhase::Victory) return;
+    State.Phase = ECombatPhase::Victory;
+    ApplyRelicTrigger(ERelicTrigger::CombatVictory);
+    AddLog(FText::Format(NSLOCTEXT("Combat", "Victory", "击败 {0}。"), Enemy.Name), 1);
 }
 
 void UCombatManager::AddLog(const FText& Message, int32 Tone)

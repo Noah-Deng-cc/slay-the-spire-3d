@@ -53,6 +53,7 @@ private:
     int32 EnemyBlock = 0;
     int32 EnemyVulnerable = 0;
     int32 EnemyWeak = 0;
+    int32 EnemyStrength = 0;
     int32 EnemyPoison = 0;
 
     void DrawCards(int32 Amount);
@@ -61,7 +62,9 @@ private:
     void ResolveEnemyTurn();
     void PreparePlayerTurn();
     void ApplyRelicTrigger(ERelicTrigger Trigger);
+    void EnterVictory();
     void TakeDamage(int32 Amount);
+    int32 GetEnemyAttackDamage(int32 BaseDamage) const;
     void UpdateEnemyIntent();
     static void ShuffleCards(TArray<FCardData>& Cards);
 };
