@@ -1,10 +1,25 @@
-# Unity generated
+# Unreal Engine generated
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+Makefile
+
+# Unity leftovers from the prototype
+Assets/
+Packages/
+ProjectSettings/
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
-[Bb]uild/
-[Bb]uilds/
-[Ll]ogs/
+[Oo]bj/
 [Uu]ser[Ss]ettings/
 MemoryCaptures/
 
@@ -12,8 +27,6 @@ MemoryCaptures/
 .idea/
 .vs/
 .vscode/
-*.csproj
-*.sln
 *.user
 *.userosscache
 *.suo

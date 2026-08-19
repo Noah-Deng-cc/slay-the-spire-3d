@@ -1,6 +1,6 @@
 # 记忆尖塔项目计划
 
-版本：v0.1 MVP  
+版本：v0.2 UE5 MVP
 项目类型：单人卡牌 Roguelike  
 目标平台：PC  
 技术基线：Unreal Engine 5 + C++ + UMG
@@ -110,6 +110,25 @@
 8. 管理藏品、金币和药水。
 9. 击败第三层 Boss，显示通关结果。
 10. 失败后能够重新开始一局。
+
+### 纯代码验收入口
+
+UE5 PIE 控制台命令：
+
+```text
+SS3D character odette
+SS3D new 1337
+SS3D map
+SS3D select <nodeId>
+SS3D hand
+SS3D play <cardIndex>
+SS3D end
+SS3D reward <index>
+```
+
+通过 `SS3D status` 查看局内状态；商店、休息和事件分别使用 `SS3D shop`、`SS3D rest heal` / `SS3D rest upgrade`、`SS3D event 0` / `SS3D event 1`。
+
+输入 `SS3D demo` 可运行固定种子的自动回归流程，验证地图、战斗、奖励、节点推进和三层通关状态。
 
 ## 6. 开发阶段
 

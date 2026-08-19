@@ -36,6 +36,25 @@ https://github.com/Noah-Deng-cc/slay-the-spire-3d
 - 第一角色奥黛塔的初始卡组为：打击 x5、防御 x4、痛击 x1，共 10 张；每回合 3 点能量。
 - 主要边界：`GameInstance` / 运行状态、`MapManager`（地图逻辑）、`CombatManager`（战斗逻辑）、UMG Widget（表现层）。
 
+### 纯代码运行入口
+
+在 UE5 PIE 的控制台执行：
+
+```text
+SS3D character odette
+SS3D new 1337
+SS3D map
+SS3D select <nodeId>
+SS3D hand
+SS3D play <cardIndex>
+SS3D end
+SS3D reward <index>
+```
+
+输入 `SS3D demo` 可运行内置自动策略，自动选择路线、处理战斗和奖励，并输出三层通关结果，用于后端回归验收。
+
+其他命令：`SS3D status`、`SS3D potion <index>`、`SS3D shop`、`SS3D buy card/relic/potion/remove <index>`、`SS3D rest heal/upgrade`、`SS3D event 0/1`。当前版本不依赖 3D 模型和 UMG，可通过 UE 日志完整验证游戏循环。
+
 ### 当前明确缺口
 
 - 3D 战斗场景、玩家模型、敌人模型、卡牌立绘、动画、粒子和音频资源：仓库中不存在，当前不可用。
@@ -44,13 +63,21 @@ https://github.com/Noah-Deng-cc/slay-the-spire-3d
 ## 📁 项目结构
 
 ```
-Source/SS3D/
-├── SS3D.Build.cs       # UE5 模块配置
-├── CombatTypes.h       # 卡牌和战斗数据类型
-├── CombatManager.*     # 战斗运行时逻辑
-├── MapTypes.*          # 地图节点、层和路线数据
-├── MapManager.*        # 地图生成与路径选择
-└── UI/                 # 后续 UMG 表现层
+Source/
+├── SS3D.Target.cs       # UE5 Game Target
+├── SS3DEditor.Target.cs # UE5 Editor Target
+└── SS3D/
+    ├── SS3D.Build.cs       # UE5 模块配置
+    ├── CombatTypes.h       # 卡牌、战斗、资源和敌人数据类型
+    ├── CombatManager.*     # 战斗运行时逻辑
+    ├── MapTypes.h          # 地图节点、层和路线数据
+    ├── MapManager.*        # 地图生成与路径选择
+    ├── CardLibrary.*       # 卡牌库和奥黛塔初始卡组
+    ├── RelicLibrary.*      # 藏品库
+    ├── PotionLibrary.*     # 药水库
+    ├── EnemyLibrary.*      # 敌人和 Boss 库
+    ├── SS3DGameMode.*      # 纯代码游戏流程
+    └── SS3DPlayerController.* # 控制台命令入口
 
 Content/
 ├── Maps/               # UE5 场景
