@@ -1,6 +1,6 @@
 # 🗡️ SS3D — 游戏设计文档 (GDD)
 
-> 版本: v0.1 MVP | 日期: 2025-07 | 参考: Slay the Spire × 崩坏：星穹铁道
+> 版本: v0.2 UE5 | 日期: 2026-08 | 玩法参考: Slay the Spire 2
 
 ---
 
@@ -34,35 +34,40 @@
 
 ### 2.1 卡牌数据结构
 
-```csharp
-public class CardData
+```cpp
+// 运行时卡牌数据；正式实现放在 Source/SS3D/CombatTypes.h
+USTRUCT(BlueprintType)
+struct FCardData
 {
-    public string Id;              // 唯一ID, 如 "strike_01"
-    public string Name;            // 卡牌名, 如 "斩击"
-    public int Cost;               // 能量消耗 (0-5)
-    public CardType Type;          // 攻击/技能/能力
-    public CardRarity Rarity;      // 普通/罕见/稀有
-    public string Description;     // 效果描述
-    public CardEffect[] Effects;   // 实际效果列表
-    public Sprite Artwork;         // 卡面立绘
-    public ElementType Element;    // 元素属性 (米家特色!)
+    GENERATED_BODY()
+
+    FName Id;
+    FText Name;
+    int32 Cost = 1;
+    ECardType Type;
+    ECardRarity Rarity;
+    FText Description;
+    TArray<FCardEffect> Effects;
+    TObjectPtr<UTexture2D> Artwork;
+    EElementType Element;
 }
 
-public enum CardType    { Attack, Skill, Power }
-public enum CardRarity  { Common, Uncommon, Rare }
-public enum ElementType { None, Fire, Ice, Thunder, Wind, Quantum }
+UENUM(BlueprintType) enum class ECardType : uint8 { Attack, Skill, Power };
+UENUM(BlueprintType) enum class ECardRarity : uint8 { Common, Uncommon, Rare };
+UENUM(BlueprintType) enum class EElementType : uint8 { None, Fire, Ice, Thunder, Wind, Quantum };
 ```
 
 ### 2.2 效果系统 (命令模式)
 
-```csharp
+```cpp
 // 每种效果是一个可组合的"效果块"
-public abstract class CardEffect
+USTRUCT(BlueprintType)
+struct FCardEffect
 {
-    public EffectTarget Target;    // 目标: 敌方/自己/全体
-    public int Value;              // 数值
-
-    public abstract void Execute(CombatState state);
+    GENERATED_BODY()
+    EEffectTarget Target;
+    int32 Value = 0;
+    ECardEffectType Type;
 }
 
 // 示例效果:
@@ -74,7 +79,7 @@ public abstract class CardEffect
 // - HealHp        : 恢复 X 点生命
 ```
 
-### 2.3 MVP卡牌列表 (15张)
+### 2.3 MVP卡牌列表（第一版先按基础卡牌 Roguelike 规则）
 
 | ID | 名称 | 费用 | 类型 | 效果 | 稀有度 |
 |----|------|------|------|------|--------|
@@ -225,20 +230,20 @@ public abstract class CardEffect
 ## 6. MVP范围界定 (第1个月目标)
 
 ### ✅ MVP必做:
-- [ ] 15张卡牌 + 效果系统
+- [ ] 基础卡牌类型 + 效果系统
 - [ ] 1个可玩角色 (初始卡组10张)
 - [ ] 3种普通敌人 + 1个Boss
 - [ ] 完整的战斗状态机
-- [ ] 基础地图 (线性8节点/层)
+- [ ] 三层分支地图 + 路径选择
 - [ ] 商店 + 篝火节点
 - [ ] 2种药水 + 3种遗物
-- [ ] 1层可玩到通关
-- [ ] 3D战斗场景 (URP + cel shading)
-- [ ] 卡牌3D化 (卡片带厚度/翻转效果)
+- [ ] 三层可玩到通关
+- [ ] 3D战斗场景（UE5）
+- [ ] 2D UMG 卡牌和地图交互
 
 ### ❌ MVP不做 (后续迭代):
 - 多角色
-- 完整3层
+- 复杂角色差异化机制
 - 存档系统
 - 音效/BGM
 - 完整动画系统
@@ -249,12 +254,12 @@ public abstract class CardEffect
 
 ---
 
-## 7. 技术架构草图
+## 7. UE5 技术架构草图
 
 ```
 ┌─────────────────────────────────────┐
-│           GameManager               │
-│  (场景切换、全局状态、存档入口)       │
+│       GameInstance / RunState        │
+│  (局内状态、场景切换、存档入口)       │
 └──────────┬──────────┬───────────────┘
            │          │
     ┌──────▼──┐  ┌───▼────────┐
@@ -264,9 +269,9 @@ public abstract class CardEffect
     └──────┬──┘  └───┬─────────┘
            │          │
     ┌──────▼──┐  ┌───▼────────┐
-    │ UIManager│  │CardManager │
-    │ 面板栈   │  │ 卡牌数据    │
-    │ 动画管理 │  │ 效果解析    │
+    │ UMG HUD  │  │ CardData   │
+    │ Widget   │  │ DataAsset  │
+    │ 表现层   │  │ 效果解析    │
     └─────────┘  └───┬─────────┘
                      │
               ┌──────▼──────────┐
@@ -278,7 +283,7 @@ public abstract class CardEffect
 
 ---
 
-## 8. 关键设计模式应用
+## 8. UE5 关键设计模式应用
 
 | 模式 | 应用场景 | 面试可讲 |
 |------|----------|----------|
@@ -286,8 +291,9 @@ public abstract class CardEffect
 | **状态模式** | 战斗状态机 | 回合状态转换 |
 | **观察者模式** | 事件系统(出牌/受伤) | UI更新、buff触发 |
 | **对象池** | 卡牌GameObject复用 | 性能优化 |
-| **单例模式** | GameManager, AudioManager | 全局管理 |
-| **工厂模式** | 卡牌/敌人/节点生成 | 灵活创建对象 |
+| **GameInstance** | RunState、跨场景状态 | 局内状态管理 |
+| **DataAsset** | 卡牌、敌人、节点配置 | 编辑器可配置数据 |
+| **Subsystem** | 地图、战斗和资源服务 | 生命周期明确的服务 |
 
 > 💡 **面试TIP**: 每种设计模式你都能讲出在SS3D里具体怎么用的，这就是最好的项目答辩。
 
