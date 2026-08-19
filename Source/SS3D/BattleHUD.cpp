@@ -9,7 +9,10 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/SOverlay.h"
+#include "Widgets/SLeafWidget.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Input/Reply.h"
+#include "InputCoreTypes.h"
 #include "Styling/CoreStyle.h"
 
 namespace
@@ -21,6 +24,205 @@ namespace
         return Font;
     }
 }
+
+class SMemoryMapCanvas : public SLeafWidget
+{
+public:
+    SLATE_BEGIN_ARGS(SMemoryMapCanvas) {}
+    SLATE_END_ARGS()
+
+    void Construct(const FArguments& InArgs)
+    {
+        SetCanTick(false);
+    }
+
+    void SetMapState(const FMapRunState& InState)
+    {
+        MapState = InState;
+        Invalidate(EInvalidateWidgetReason::Paint);
+    }
+
+    void SetOnNodeClicked(TFunction<void(int32)> InCallback)
+    {
+        OnNodeClicked = MoveTemp(InCallback);
+    }
+
+protected:
+    virtual FVector2D ComputeDesiredSize(float) const override
+    {
+        return FVector2D(1040.0f, 760.0f);
+    }
+
+    virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
+        const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
+        int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override
+    {
+        const FSlateBrush* Brush = FCoreStyle::Get().GetBrush(TEXT("WhiteBrush"));
+        const FLinearColor Background(0.035f, 0.055f, 0.09f, 1.0f);
+        FSlateDrawElement::MakeBox(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), Brush,
+            ESlateDrawEffect::None, Background);
+
+        if (MapState.Nodes.Num() == 0)
+        {
+            FSlateDrawElement::MakeText(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(),
+                FText::FromString(TEXT("记忆尖塔")), FontAtSize(22), ESlateDrawEffect::None,
+                FLinearColor(0.55f, 0.85f, 0.95f, 1.0f));
+            return LayerId + 1;
+        }
+
+        for (int32 ActIndex = 0; ActIndex < 3; ++ActIndex)
+        {
+            FSlateDrawElement::MakeText(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(
+                MapPosition(ActIndex, 7, 0) + FVector2D(-30.0f, -32.0f), FVector2D(120.0f, 24.0f)),
+                FText::FromString(FString::Printf(TEXT("第 %d 层"), ActIndex + 1)), FontAtSize(16),
+                ESlateDrawEffect::None, FLinearColor(0.55f, 0.78f, 0.90f, 1.0f));
+        }
+
+        for (const FMapNodeData& Node : MapState.Nodes)
+        {
+            const FVector2D Start = MapPosition(Node) + PanOffset + FVector2D(42.0f, 20.0f);
+            for (const int32 NextId : Node.NextNodeIds)
+            {
+                const FMapNodeData* Next = FindNode(NextId);
+                if (!Next) continue;
+                const FVector2D End = MapPosition(*Next) + PanOffset + FVector2D(42.0f, 20.0f);
+                TArray<FVector2D> Points;
+                Points.Add(Start);
+                Points.Add(End);
+                const bool bActive = Node.NodeId == MapState.CurrentNodeId || Node.bCompleted;
+                FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(),
+                    Points, ESlateDrawEffect::None,
+                    bActive ? FLinearColor(0.28f, 0.65f, 0.78f, 0.85f) : FLinearColor(0.20f, 0.28f, 0.38f, 0.9f),
+                    true, 2.0f);
+            }
+        }
+
+        for (const FMapNodeData& Node : MapState.Nodes)
+        {
+            const FVector2D Position = MapPosition(Node) + PanOffset;
+            const bool bCurrent = Node.NodeId == MapState.CurrentNodeId;
+            const bool bSelectable = IsSelectable(Node);
+            const FLinearColor Color = bCurrent
+                ? FLinearColor(0.12f, 0.58f, 0.70f, 1.0f)
+                : (Node.bCompleted ? FLinearColor(0.18f, 0.42f, 0.30f, 1.0f)
+                    : (bSelectable ? FLinearColor(0.20f, 0.34f, 0.48f, 1.0f) : FLinearColor(0.10f, 0.15f, 0.22f, 1.0f)));
+            FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 2,
+                AllottedGeometry.ToPaintGeometry(Position, FVector2D(84.0f, 40.0f)), Brush,
+                ESlateDrawEffect::None, Color);
+
+            const FString Label = FString::Printf(TEXT("%s%s"), *NodeTypeLabel(Node.NodeType).ToString(), bSelectable ? TEXT("  ·") : TEXT(""));
+            FSlateDrawElement::MakeText(OutDrawElements, LayerId + 3,
+                AllottedGeometry.ToPaintGeometry(Position + FVector2D(5.0f, 9.0f), FVector2D(74.0f, 22.0f)),
+                FText::FromString(Label), FontAtSize(13), ESlateDrawEffect::None,
+                bCurrent || bSelectable ? FLinearColor::White : FLinearColor(0.68f, 0.74f, 0.82f, 1.0f));
+        }
+
+        return LayerId + 3;
+    }
+
+    virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
+    {
+        if (MouseEvent.GetEffectingButton() != EKeys::LeftMouseButton) return FReply::Unhandled();
+        PressedNodeId = HitTest(MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()));
+        LastCursor = MouseEvent.GetScreenSpacePosition();
+        bDragging = true;
+        bMoved = false;
+        return FReply::Handled().CaptureMouse(SharedThis(this));
+    }
+
+    virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
+    {
+        if (!bDragging || !HasMouseCapture()) return FReply::Unhandled();
+        const FVector2D Delta = MouseEvent.GetScreenSpacePosition() - LastCursor;
+        LastCursor = MouseEvent.GetScreenSpacePosition();
+        if (Delta.SizeSquared() > 0.0f)
+        {
+            bMoved = true;
+            PanOffset += Delta;
+            PanOffset.X = FMath::Clamp(PanOffset.X, FMath::Min(18.0f, MyGeometry.Size.X - 1040.0f - 18.0f), 18.0f);
+            PanOffset.Y = FMath::Clamp(PanOffset.Y, FMath::Min(46.0f, MyGeometry.Size.Y - 760.0f - 18.0f), 46.0f);
+            Invalidate(EInvalidateWidgetReason::Paint);
+        }
+        return FReply::Handled();
+    }
+
+    virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
+    {
+        if (MouseEvent.GetEffectingButton() != EKeys::LeftMouseButton || !bDragging) return FReply::Unhandled();
+        const int32 ClickedNodeId = PressedNodeId;
+        const bool bWasClick = !bMoved;
+        bDragging = false;
+        PressedNodeId = INDEX_NONE;
+        FReply Reply = FReply::Handled().ReleaseMouseCapture();
+        if (bWasClick && ClickedNodeId != INDEX_NONE && OnNodeClicked)
+        {
+            OnNodeClicked(ClickedNodeId);
+        }
+        return Reply;
+    }
+
+private:
+    FMapRunState MapState;
+    TFunction<void(int32)> OnNodeClicked;
+    FVector2D PanOffset = FVector2D(18.0f, 46.0f);
+    FVector2D LastCursor = FVector2D::ZeroVector;
+    int32 PressedNodeId = INDEX_NONE;
+    bool bDragging = false;
+    bool bMoved = false;
+
+    static FVector2D MapPosition(const FMapNodeData& Node)
+    {
+        return MapPosition(Node.ActIndex, Node.RowIndex, Node.ColumnIndex);
+    }
+
+    static FVector2D MapPosition(int32 ActIndex, int32 RowIndex, int32 ColumnIndex)
+    {
+        const float ColumnOffset = ColumnIndex == 0 ? 0.0f : (ColumnIndex == 1 ? 48.0f : 96.0f);
+        return FVector2D(70.0f + ActIndex * 330.0f + ColumnOffset, 650.0f - RowIndex * 82.0f);
+    }
+
+    const FMapNodeData* FindNode(int32 NodeId) const
+    {
+        for (const FMapNodeData& Node : MapState.Nodes)
+        {
+            if (Node.NodeId == NodeId) return &Node;
+        }
+        return nullptr;
+    }
+
+    bool IsSelectable(const FMapNodeData& Node) const
+    {
+        const FMapNodeData* Current = FindNode(MapState.CurrentNodeId);
+        return Current && !Node.bVisited && Current->NextNodeIds.Contains(Node.NodeId)
+            && (Current->bCompleted || Current->NodeType == EMapNodeType::Start);
+    }
+
+    int32 HitTest(const FVector2D& LocalPosition) const
+    {
+        for (const FMapNodeData& Node : MapState.Nodes)
+        {
+            const FVector2D Position = MapPosition(Node) + PanOffset;
+            if (FBox2D(Position, Position + FVector2D(84.0f, 40.0f)).IsInside(LocalPosition)) return Node.NodeId;
+        }
+        return INDEX_NONE;
+    }
+
+    static FText NodeTypeLabel(EMapNodeType Type)
+    {
+        switch (Type)
+        {
+        case EMapNodeType::Start: return FText::FromString(TEXT("起点"));
+        case EMapNodeType::Combat: return FText::FromString(TEXT("战斗"));
+        case EMapNodeType::Reward: return FText::FromString(TEXT("奖励"));
+        case EMapNodeType::Shop: return FText::FromString(TEXT("商店"));
+        case EMapNodeType::Event: return FText::FromString(TEXT("事件"));
+        case EMapNodeType::Elite: return FText::FromString(TEXT("精英"));
+        case EMapNodeType::Rest: return FText::FromString(TEXT("休息"));
+        case EMapNodeType::Boss: return FText::FromString(TEXT("Boss"));
+        default: return FText::FromString(TEXT("未知"));
+        }
+    }
+};
 
 void USBattleHUD::NativeConstruct()
 {
@@ -46,9 +248,11 @@ TSharedRef<SWidget> USBattleHUD::RebuildWidget()
 void USBattleHUD::ReleaseSlateResources(bool bReleaseChildren)
 {
     RootOverlay.Reset();
-    MapContent.Reset();
     MainContent.Reset();
     SideContent.Reset();
+    HandContent.Reset();
+    MapCanvas.Reset();
+    HandFrame.Reset();
     HeaderStatus.Reset();
     SeedInput.Reset();
     Super::ReleaseSlateResources(bReleaseChildren);
@@ -65,6 +269,13 @@ void USBattleHUD::InitializeWithGameMode(ASS3DGameMode* InGameMode)
     if (GameMode)
     {
         GameMode->OnStateChanged.AddUObject(this, &USBattleHUD::HandleGameStateChanged);
+    }
+    if (MapCanvas.IsValid())
+    {
+        MapCanvas->SetOnNodeClicked([this](int32 NodeId)
+        {
+            ExecuteCommand(FString::Printf(TEXT("select %d"), NodeId));
+        });
     }
     Refresh();
 }
@@ -110,24 +321,20 @@ void USBattleHUD::BuildLayout()
     .Padding(0.0f, 12.0f, 12.0f, 0.0f)
     [
         SNew(SBox)
-        .WidthOverride(300.0f)
+        .WidthOverride(470.0f)
         [
             SNew(SBorder)
             .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-            .BorderBackgroundColor(FLinearColor(0.055f, 0.085f, 0.13f, 0.96f))
-            .Padding(14.0f)
+            .BorderBackgroundColor(FLinearColor(0.035f, 0.055f, 0.09f, 0.98f))
+            .Padding(6.0f)
             [
-                SNew(SScrollBox)
-                + SScrollBox::Slot()
-                [
-                    SAssignNew(MapContent, SVerticalBox)
-                ]
+                SAssignNew(MapCanvas, SMemoryMapCanvas)
             ]
         ]
     ]
     + SHorizontalBox::Slot()
     .FillWidth(1.0f)
-    .Padding(0.0f, 12.0f, 12.0f, 0.0f)
+        .Padding(0.0f, 12.0f, 12.0f, 0.0f)
     [
         SNew(SBorder)
         .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
@@ -146,7 +353,7 @@ void USBattleHUD::BuildLayout()
     .Padding(0.0f, 12.0f, 0.0f, 0.0f)
     [
         SNew(SBox)
-        .WidthOverride(280.0f)
+        .WidthOverride(230.0f)
         [
             SNew(SBorder)
             .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
@@ -175,6 +382,46 @@ void USBattleHUD::BuildLayout()
         Body.ToSharedRef()
     ];
 
+    Frame->AddSlot()
+    .AutoHeight()
+    .Padding(18.0f, 0.0f, 18.0f, 14.0f)
+    [
+        SAssignNew(HandFrame, SBorder)
+        .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+        .BorderBackgroundColor(FLinearColor(0.055f, 0.075f, 0.11f, 0.98f))
+        .Padding(12.0f, 8.0f)
+        .Visibility_Lambda([this]()
+        {
+            return GameMode && GameMode->IsCombatActive() ? EVisibility::Visible : EVisibility::Collapsed;
+        })
+        [
+            SNew(SVerticalBox)
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(0.0f, 0.0f, 0.0f, 6.0f)
+            [
+                SNew(STextBlock)
+                .Text_Lambda([this]()
+                {
+                    if (!GameMode || !GameMode->IsCombatActive()) return FText::GetEmpty();
+                    return FText::FromString(FString::Printf(TEXT("手牌  %d"), GameMode->GetCombatSnapshot().Hand.Num()));
+                })
+                .Font(FontAtSize(15))
+                .ColorAndOpacity(FLinearColor(0.72f, 0.84f, 0.92f, 1.0f))
+            ]
+            + SVerticalBox::Slot()
+            .FillHeight(1.0f)
+            [
+                SNew(SScrollBox)
+                .Orientation(Orient_Horizontal)
+                + SScrollBox::Slot()
+                [
+                    SAssignNew(HandContent, SHorizontalBox)
+                ]
+            ]
+        ]
+    ];
+
     RootOverlay->AddSlot()
     .Padding(0.0f)
     [
@@ -184,18 +431,18 @@ void USBattleHUD::BuildLayout()
 
 void USBattleHUD::Refresh()
 {
-    if (!RootOverlay.IsValid() || !MapContent.IsValid() || !MainContent.IsValid() || !SideContent.IsValid() || !GameMode)
+    if (!RootOverlay.IsValid() || !MapCanvas.IsValid() || !MainContent.IsValid() || !SideContent.IsValid() || !GameMode)
     {
         return;
     }
 
     if (!GameMode->IsRunStarted())
     {
-        HeaderStatus->SetText(FText::FromString(TEXT("准备开始")));
+        HeaderStatus->SetText(FText::FromString(TEXT("待机")));
     }
     else if (GameMode->IsCombatActive())
     {
-        HeaderStatus->SetText(FText::Format(FText::FromString(TEXT("战斗中 · {0}")), PhaseLabel(GameMode->GetCombatSnapshot().Phase)));
+        HeaderStatus->SetText(PhaseLabel(GameMode->GetCombatSnapshot().Phase));
     }
     else if (GameMode->GetMapState().bRunComplete)
     {
@@ -203,12 +450,13 @@ void USBattleHUD::Refresh()
     }
     else
     {
-        HeaderStatus->SetText(FText::FromString(TEXT("规划路线")));
+        HeaderStatus->SetText(FText::FromString(TEXT("地图")));
     }
 
     RefreshMapPanel();
     RefreshMainPanel();
     RefreshSidePanel();
+    RefreshHandPanel();
 }
 
 void USBattleHUD::HandleGameStateChanged()
@@ -269,29 +517,8 @@ void USBattleHUD::AddButton(const TSharedPtr<SVerticalBox>& Parent, const FText&
 
 void USBattleHUD::RefreshMapPanel()
 {
-    MapContent->ClearChildren();
-
-    if (!GameMode->IsRunStarted())
-    {
-        AddText(MapContent, FText::FromString(TEXT("记忆尖塔")), FLinearColor(0.35f, 0.90f, 1.0f, 1.0f), 22, 10.0f);
-        AddText(MapContent, FText::FromString(TEXT("进入神秘空间，规划路线并登上塔顶。")), FLinearColor(0.75f, 0.82f, 0.90f), 15);
-        return;
-    }
-
-    const FMapRunState& State = GameMode->GetMapState();
-    AddText(MapContent, FText::FromString(FString::Printf(TEXT("尖塔地图  |  第 %d 层"), State.CurrentAct + 1)), FLinearColor(0.35f, 0.90f, 1.0f, 1.0f), 20, 10.0f);
-    AddText(MapContent, FText::FromString(FString::Printf(TEXT("Seed %d  |  当前节点 %d"), State.Seed, State.CurrentNodeId)), FLinearColor(0.65f, 0.72f, 0.82f), 13, 12.0f);
-
-    for (const FMapNodeData& Node : State.Nodes)
-    {
-        if (Node.ActIndex != State.CurrentAct && Node.NodeType != EMapNodeType::Boss) continue;
-
-        FString Marker = Node.NodeId == State.CurrentNodeId ? TEXT("> ") : (Node.bCompleted ? TEXT("✓ ") : TEXT("  "));
-        const FLinearColor Color = Node.NodeId == State.CurrentNodeId
-            ? FLinearColor(0.35f, 0.90f, 1.0f)
-            : (Node.bCompleted ? FLinearColor(0.45f, 0.75f, 0.55f) : FLinearColor(0.72f, 0.76f, 0.84f));
-        AddText(MapContent, FText::FromString(FString::Printf(TEXT("%s[%d] Row%d  %s"), *Marker, Node.NodeId, Node.RowIndex, *NodeTypeLabel(Node.NodeType).ToString())), Color, 14, 3.0f);
-    }
+    if (!MapCanvas.IsValid() || !GameMode) return;
+    MapCanvas->SetMapState(GameMode->IsRunStarted() ? GameMode->GetMapState() : FMapRunState());
 }
 
 void USBattleHUD::RefreshMainPanel()
@@ -339,61 +566,90 @@ void USBattleHUD::RefreshSidePanel()
 
     if (!GameMode->IsRunStarted())
     {
-        AddText(SideContent, FText::FromString(TEXT("状态")), FLinearColor(0.35f, 0.90f, 1.0f), 20, 10.0f);
-        AddText(SideContent, FText::FromString(TEXT("等待开始一局游戏。")), FLinearColor(0.72f, 0.76f, 0.84f), 15);
         return;
     }
 
-    AddText(SideContent, FText::FromString(TEXT("本局状态")), FLinearColor(0.35f, 0.90f, 1.0f), 20, 10.0f);
     const int32 CurrentHp = GameMode->IsCombatActive() ? GameMode->GetCombatSnapshot().PlayerHp : GameMode->GetPlayerHp();
     const int32 CurrentMaxHp = GameMode->IsCombatActive() ? GameMode->GetCombatSnapshot().PlayerMaxHp : GameMode->GetPlayerMaxHp();
     const int32 CurrentPotionCount = GameMode->IsCombatActive() ? GameMode->GetCombatSnapshot().Potions.Num() : GameMode->GetPotions().Num();
-    AddText(SideContent, FText::FromString(FString::Printf(TEXT("奥黛塔\n生命 %d / %d\n金币 %d\n卡牌 %d\n藏品 %d\n药水 %d"),
+    AddText(SideContent, FText::FromString(FString::Printf(TEXT("奥黛塔\n%d / %d HP\n%d 金币\n%d 卡牌\n%d 藏品\n%d 药水"),
         CurrentHp, CurrentMaxHp, GameMode->GetGold(), GameMode->GetDeck().Num(), GameMode->GetRelics().Num(), CurrentPotionCount)),
-        FLinearColor(0.85f, 0.88f, 0.94f), 16, 18.0f);
+        FLinearColor(0.85f, 0.88f, 0.94f), 16, 16.0f);
 
     if (GameMode->IsCombatActive())
     {
         const FCombatSnapshot& Combat = GameMode->GetCombatSnapshot();
-        AddText(SideContent, FText::FromString(FString::Printf(TEXT("战斗回合 %d\n能量 %d / %d\n力量 %d\n敌人护盾 %d"),
+        AddText(SideContent, FText::FromString(FString::Printf(TEXT("回合 %d\n%d / %d 能量\n力量 %d\n敌方护盾 %d"),
             Combat.Turn, Combat.Energy, Combat.MaxEnergy, Combat.PlayerStrength, Combat.EnemyBlock)), FLinearColor(0.95f, 0.78f, 0.45f), 15, 14.0f);
-        AddText(SideContent, Combat.LastAction, FLinearColor(0.65f, 0.72f, 0.82f), 13);
     }
-    else
+}
+
+void USBattleHUD::RefreshHandPanel()
+{
+    if (!HandContent.IsValid()) return;
+    HandContent->ClearChildren();
+    if (!GameMode || !GameMode->IsCombatActive()) return;
+
+    const TArray<FCardData>& Hand = GameMode->GetCombatSnapshot().Hand;
+    for (int32 Index = 0; Index < Hand.Num(); ++Index)
     {
-        AddText(SideContent, FText::FromString(TEXT("选择地图中的下一节点继续。")), FLinearColor(0.65f, 0.72f, 0.82f), 14);
+        AddCardButton(Hand[Index], Index);
     }
+}
+
+void USBattleHUD::AddCardButton(const FCardData& Card, int32 CardIndex)
+{
+    if (!HandContent.IsValid()) return;
+    const FLinearColor Color = Card.Type == ECardType::Attack
+        ? FLinearColor(0.38f, 0.16f, 0.16f, 1.0f)
+        : (Card.Type == ECardType::Power ? FLinearColor(0.30f, 0.18f, 0.36f, 1.0f) : FLinearColor(0.12f, 0.25f, 0.34f, 1.0f));
+    HandContent->AddSlot()
+        .AutoWidth()
+        .Padding(0.0f, 0.0f, 8.0f, 0.0f)
+        [
+            SNew(SBox)
+            .WidthOverride(178.0f)
+            .HeightOverride(116.0f)
+            [
+                SNew(SButton)
+                .ContentPadding(FMargin(10.0f, 8.0f))
+                .ButtonColorAndOpacity(Color)
+                .OnClicked_Lambda([this, CardIndex]()
+                {
+                    ExecuteCommand(FString::Printf(TEXT("play %d"), CardIndex));
+                    return FReply::Handled();
+                })
+                [
+                    SNew(STextBlock)
+                    .Text(FText::FromString(FString::Printf(TEXT("%s    %d\n%s"), *Card.Name.ToString(), Card.Cost, *Card.Description.ToString())))
+                    .AutoWrapText(true)
+                    .Justification(ETextJustify::Center)
+                    .Font(FontAtSize(14))
+                    .ColorAndOpacity(FLinearColor::White)
+                ]
+            ]
+        ];
 }
 
 void USBattleHUD::ShowHome()
 {
-    AddText(MainContent, FText::FromString(TEXT("开始你的第一局")), FLinearColor(0.35f, 0.90f, 1.0f), 30, 12.0f);
-    AddText(MainContent, FText::FromString(TEXT("奥黛塔 / 战士\n初始卡组：打击 x5、防御 x4、痛击 x1\n每回合 3 点能量，登上三层尖塔即可离开。")), FLinearColor(0.82f, 0.86f, 0.92f), 17, 18.0f);
-    AddText(MainContent, FText::FromString(TEXT("地图种子")), FLinearColor(0.65f, 0.72f, 0.82f), 14, 4.0f);
+    AddText(MainContent, FText::FromString(TEXT("奥黛塔")), FLinearColor(0.35f, 0.90f, 1.0f), 30, 16.0f);
     SAssignNew(SeedInput, SEditableTextBox)
         .Text(FText::FromString(TEXT("1337")))
-        .HintText(FText::FromString(TEXT("输入数字种子")));
+        .HintText(FText::FromString(TEXT("Seed")));
     MainContent->AddSlot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 14.0f)[SeedInput.ToSharedRef()];
-    AddButton(MainContent, FText::FromString(TEXT("选择奥黛塔并开始游戏")), [this]() { StartOdette(); }, FLinearColor(0.08f, 0.42f, 0.48f, 1.0f));
-    AddText(MainContent, FText::FromString(TEXT("也可以使用控制台命令：SS3D character odette / SS3D new 1337")), FLinearColor(0.48f, 0.56f, 0.68f), 13, 4.0f);
+    AddButton(MainContent, FText::FromString(TEXT("开始")), [this]() { StartOdette(); }, FLinearColor(0.08f, 0.42f, 0.48f, 1.0f));
 }
 
 void USBattleHUD::ShowMap()
 {
-    AddText(MainContent, FText::FromString(TEXT("规划路线")), FLinearColor(0.35f, 0.90f, 1.0f), 28, 8.0f);
-    AddText(MainContent, FText::FromString(TEXT("选择当前节点连接的下一节点。每一条路线都会影响你的资源和战斗节奏。")), FLinearColor(0.75f, 0.82f, 0.90f), 15, 16.0f);
-
+    const FMapRunState& State = GameMode->GetMapState();
+    AddText(MainContent, FText::FromString(FString::Printf(TEXT("第 %d 层    节点 %d"), State.CurrentAct + 1, State.CurrentNodeId)), FLinearColor(0.35f, 0.90f, 1.0f), 24, 14.0f);
     const TArray<FMapNodeData> Available = GameMode->GetMapManager()->GetAvailableNextNodes();
-    if (Available.Num() == 0)
-    {
-        AddText(MainContent, FText::FromString(TEXT("当前没有可选择节点。")), FLinearColor(0.90f, 0.45f, 0.45f), 16);
-        return;
-    }
     for (const FMapNodeData& Node : Available)
     {
         const int32 NodeId = Node.NodeId;
-        const FText Label = FText::FromString(FString::Printf(TEXT("[%d] %s"), NodeId, *NodeTypeLabel(Node.NodeType).ToString()));
-        AddButton(MainContent, Label, [this, NodeId]() { ExecuteCommand(FString::Printf(TEXT("select %d"), NodeId)); });
+        AddButton(MainContent, FText::FromString(FString::Printf(TEXT("%s  %d"), *NodeTypeLabel(Node.NodeType).ToString(), NodeId)), [this, NodeId]() { ExecuteCommand(FString::Printf(TEXT("select %d"), NodeId)); });
     }
 }
 
@@ -406,15 +662,6 @@ void USBattleHUD::ShowCombat()
     AddText(MainContent, FText::FromString(FString::Printf(TEXT("敌方意图：%s (%d)"), *Combat.EnemyIntentLabel.ToString(), Combat.EnemyIntentDamage)), FLinearColor(0.98f, 0.50f, 0.45f), 16, 14.0f);
     AddText(MainContent, FText::FromString(FString::Printf(TEXT("你的生命 %d / %d    护盾 %d    能量 %d / %d"), Combat.PlayerHp, Combat.PlayerMaxHp, Combat.PlayerBlock, Combat.Energy, Combat.MaxEnergy)), FLinearColor(0.65f, 0.90f, 0.72f), 16, 12.0f);
 
-    AddText(MainContent, FText::FromString(TEXT("手牌")), FLinearColor(0.35f, 0.90f, 1.0f), 20, 8.0f);
-    for (int32 Index = 0; Index < Combat.Hand.Num(); ++Index)
-    {
-        const FCardData Card = Combat.Hand[Index];
-        const int32 CardIndex = Index;
-        const FText Label = FText::FromString(FString::Printf(TEXT("[%d] %s  |  %d 能量\n%s"), CardIndex, *Card.Name.ToString(), Card.Cost, *Card.Description.ToString()));
-        const FLinearColor Color = Card.Type == ECardType::Attack ? FLinearColor(0.38f, 0.16f, 0.16f, 1.0f) : FLinearColor(0.12f, 0.25f, 0.34f, 1.0f);
-        AddButton(MainContent, Label, [this, CardIndex]() { ExecuteCommand(FString::Printf(TEXT("play %d"), CardIndex)); }, Color);
-    }
     AddButton(MainContent, FText::FromString(TEXT("结束回合")), [this]() { ExecuteCommand(TEXT("end")); }, FLinearColor(0.35f, 0.22f, 0.14f, 1.0f));
 
     if (Combat.Potions.Num() > 0)
@@ -433,8 +680,7 @@ void USBattleHUD::ShowCombat()
 
 void USBattleHUD::ShowRewards()
 {
-    AddText(MainContent, FText::FromString(TEXT("战斗奖励")), FLinearColor(0.95f, 0.78f, 0.35f), 28, 8.0f);
-    AddText(MainContent, FText::FromString(TEXT("选择一张卡牌加入卡组，也可以跳过。")), FLinearColor(0.75f, 0.82f, 0.90f), 15, 14.0f);
+    AddText(MainContent, FText::FromString(TEXT("奖励")), FLinearColor(0.95f, 0.78f, 0.35f), 28, 12.0f);
     const TArray<FCardData>& Rewards = GameMode->GetPendingRewards();
     for (int32 Index = 0; Index < Rewards.Num(); ++Index)
     {
@@ -444,23 +690,21 @@ void USBattleHUD::ShowRewards()
             ExecuteCommand(FString::Printf(TEXT("reward %d"), RewardIndex));
         }, FLinearColor(0.28f, 0.22f, 0.10f, 1.0f));
     }
-    AddButton(MainContent, FText::FromString(TEXT("跳过奖励")), [this]() { ExecuteCommand(TEXT("reward -1")); }, FLinearColor(0.18f, 0.20f, 0.25f, 1.0f));
+    AddButton(MainContent, FText::FromString(TEXT("跳过")), [this]() { ExecuteCommand(TEXT("reward -1")); }, FLinearColor(0.18f, 0.20f, 0.25f, 1.0f));
 }
 
 void USBattleHUD::ShowRest()
 {
-    AddText(MainContent, FText::FromString(TEXT("休息点")), FLinearColor(0.45f, 0.88f, 0.60f), 28, 8.0f);
-    AddText(MainContent, FText::FromString(TEXT("在这里恢复生命，或升级当前卡组的第一张可升级卡牌。")), FLinearColor(0.75f, 0.82f, 0.90f), 16, 16.0f);
-    AddButton(MainContent, FText::FromString(TEXT("休息并恢复生命")), [this]() { ExecuteCommand(TEXT("rest heal")); }, FLinearColor(0.15f, 0.38f, 0.24f, 1.0f));
-    AddButton(MainContent, FText::FromString(TEXT("升级卡牌")), [this]() { ExecuteCommand(TEXT("rest upgrade")); }, FLinearColor(0.24f, 0.30f, 0.18f, 1.0f));
+    AddText(MainContent, FText::FromString(TEXT("休息")), FLinearColor(0.45f, 0.88f, 0.60f), 28, 12.0f);
+    AddButton(MainContent, FText::FromString(TEXT("恢复")), [this]() { ExecuteCommand(TEXT("rest heal")); }, FLinearColor(0.15f, 0.38f, 0.24f, 1.0f));
+    AddButton(MainContent, FText::FromString(TEXT("升级")), [this]() { ExecuteCommand(TEXT("rest upgrade")); }, FLinearColor(0.24f, 0.30f, 0.18f, 1.0f));
 }
 
 void USBattleHUD::ShowEvent()
 {
-    AddText(MainContent, FText::FromString(TEXT("记忆事件")), FLinearColor(0.70f, 0.55f, 0.95f), 28, 8.0f);
-    AddText(MainContent, FText::FromString(TEXT("一块记忆碎片悬浮在面前，你可以吸收它，或将它兑换成金币。")), FLinearColor(0.75f, 0.82f, 0.90f), 16, 16.0f);
-    AddButton(MainContent, FText::FromString(TEXT("接受记忆碎片：恢复 12 点生命")), [this]() { ExecuteCommand(TEXT("event 0")); }, FLinearColor(0.28f, 0.20f, 0.40f, 1.0f));
-    AddButton(MainContent, FText::FromString(TEXT("拒绝记忆碎片：获得 40 金币")), [this]() { ExecuteCommand(TEXT("event 1")); }, FLinearColor(0.32f, 0.24f, 0.12f, 1.0f));
+    AddText(MainContent, FText::FromString(TEXT("事件")), FLinearColor(0.70f, 0.55f, 0.95f), 28, 12.0f);
+    AddButton(MainContent, FText::FromString(TEXT("恢复 12 HP")), [this]() { ExecuteCommand(TEXT("event 0")); }, FLinearColor(0.28f, 0.20f, 0.40f, 1.0f));
+    AddButton(MainContent, FText::FromString(TEXT("获得 40 金币")), [this]() { ExecuteCommand(TEXT("event 1")); }, FLinearColor(0.32f, 0.24f, 0.12f, 1.0f));
 }
 
 void USBattleHUD::ShowShop()

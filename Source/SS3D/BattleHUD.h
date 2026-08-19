@@ -10,8 +10,11 @@ class ASS3DGameMode;
 class SWidget;
 class SOverlay;
 class SVerticalBox;
+class SHorizontalBox;
 class STextBlock;
 class SEditableTextBox;
+class SBorder;
+class SMemoryMapCanvas;
 
 UCLASS()
 class SS3D_API USBattleHUD : public UUserWidget
@@ -32,9 +35,11 @@ private:
     TObjectPtr<ASS3DGameMode> GameMode;
 
     TSharedPtr<SOverlay> RootOverlay;
-    TSharedPtr<SVerticalBox> MapContent;
     TSharedPtr<SVerticalBox> MainContent;
     TSharedPtr<SVerticalBox> SideContent;
+    TSharedPtr<SHorizontalBox> HandContent;
+    TSharedPtr<SMemoryMapCanvas> MapCanvas;
+    TSharedPtr<SBorder> HandFrame;
     TSharedPtr<STextBlock> HeaderStatus;
     TSharedPtr<SEditableTextBox> SeedInput;
 
@@ -44,9 +49,11 @@ private:
     void ExecuteCommand(const FString& Command);
     void AddText(const TSharedPtr<SVerticalBox>& Parent, const FText& Text, const FLinearColor& Color = FLinearColor::White, int32 FontSize = 16, float BottomPadding = 6.0f);
     void AddButton(const TSharedPtr<SVerticalBox>& Parent, const FText& Label, TFunction<void()> Action, const FLinearColor& Color = FLinearColor(0.10f, 0.24f, 0.34f, 1.0f));
+    void AddCardButton(const FCardData& Card, int32 CardIndex);
     void RefreshMapPanel();
     void RefreshMainPanel();
     void RefreshSidePanel();
+    void RefreshHandPanel();
     void ShowHome();
     void ShowMap();
     void ShowCombat();
