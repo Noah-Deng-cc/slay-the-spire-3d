@@ -4,6 +4,7 @@ Build/
 DerivedDataCache/
 Intermediate/
 Saved/
+Saved/
 *.sln
 *.suo
 *.opensdf
