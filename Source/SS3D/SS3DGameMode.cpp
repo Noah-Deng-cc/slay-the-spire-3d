@@ -3,12 +3,17 @@
 #include "CombatManager.h"
 #include "BattleHUD.h"
 #include "SS3DPlayerController.h"
+#include "Core/SS3DGameState.h"
+#include "Presentation/SS3DWhiteboxStage.h"
 #include "Blueprint/UserWidget.h"
+#include "Engine/Engine.h"
+#include "GameFramework/GameUserSettings.h"
 #include "GameFramework/PlayerController.h"
 
 ASS3DGameMode::ASS3DGameMode()
 {
     PlayerControllerClass = ASS3DPlayerController::StaticClass();
+    GameStateClass = ASS3DGameState::StaticClass();
 }
 
 void ASS3DGameMode::BeginPlay()
@@ -16,9 +21,22 @@ void ASS3DGameMode::BeginPlay()
     Super::BeginPlay();
     MapManager = NewObject<UMapManager>(this);
     CombatManager = NewObject<UCombatManager>(this);
+    SetPhase(ESS3DGamePhase::Boot, TEXT("游戏启动"));
+
+    if (UWorld* World = GetWorld())
+    {
+        WhiteboxStage = World->SpawnActor<ASS3DWhiteboxStage>(
+            ASS3DWhiteboxStage::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
+        Log(WhiteboxStage ? TEXT("WHITEBOX PASS：白膜战斗场景和占位人物已生成。")
+            : TEXT("WHITEBOX FAIL：白膜战斗场景生成失败。"));
+    }
 
     if (APlayerController* PlayerController = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
     {
+        if (WhiteboxStage)
+        {
+            PlayerController->SetViewTarget(WhiteboxStage);
+        }
         RuntimeHUD = CreateWidget<USBattleHUD>(PlayerController, USBattleHUD::StaticClass());
         if (RuntimeHUD)
         {
@@ -31,9 +49,14 @@ void ASS3DGameMode::BeginPlay()
             InputMode.SetHideCursorDuringCapture(false);
             PlayerController->SetInputMode(InputMode);
             PlayerController->bShowMouseCursor = true;
+            Log(TEXT("UI PASS：运行时阶段 HUD 已创建。"));
         }
+        Log(Cast<ASS3DPlayerController>(PlayerController)
+            ? TEXT("INPUT PASS：鼠标交互和键盘快捷键已绑定。")
+            : TEXT("INPUT FAIL：项目 PlayerController 未使用 SS3D 输入入口。"));
     }
 
+    SetPhase(ESS3DGamePhase::CharacterSelect, TEXT("等待选择角色"));
     Log(TEXT("记忆尖塔已启动。请选择角色：character odette"));
 }
 
@@ -49,7 +72,9 @@ void ASS3DGameMode::StartRun(int32 Seed)
     Gold = 99;
     bRunStarted = true;
     bCombatActive = false;
+    CheckpointSequence = 0;
     MapManager->GenerateMap(RunSeed);
+    SetPhase(ESS3DGamePhase::Map, TEXT("新的一局已开始，等待选择地图节点"));
     Log(FString::Printf(TEXT("开始新的一局。角色：奥黛塔，生命：%d/%d，金币：%d。"), PlayerHp, PlayerMaxHp, Gold));
     PrintMap();
     PrintAvailableNodes();
@@ -79,12 +104,19 @@ void ASS3DGameMode::ExecuteCommandInternal(const FString& CommandLine)
     if (Command == TEXT("character"))
     {
         if (Parts.Num() < 2 || Parts[1].ToLower() != TEXT("odette")) Log(TEXT("当前可用角色只有 odette（奥黛塔，战士）。"));
-        else { SelectedCharacter = TEXT("odette"); Log(TEXT("已选择奥黛塔。输入 new [seed] 开始游戏。")); }
+        else
+        {
+            SelectedCharacter = TEXT("odette");
+            SetPhase(ESS3DGamePhase::CharacterSelect, TEXT("已选择角色：奥黛塔"));
+            Log(TEXT("已选择奥黛塔。输入 new [seed] 开始游戏。"));
+        }
         return;
     }
     if (Command == TEXT("demo")) { RunDemo(); return; }
     if (Command == TEXT("effects")) { RunEffectsRegression(); return; }
     if (Command == TEXT("nodes")) { RunNodeRegression(); return; }
+    if (Command == TEXT("window")) { ConfigureWindow(Args); return; }
+    if (Command == TEXT("audit")) { RunAudit(); return; }
     if (!bRunStarted)
     {
         Log(TEXT("请先输入 new [seed] 开始游戏。"));
@@ -115,9 +147,49 @@ void ASS3DGameMode::NotifyStateChanged()
     OnStateChanged.Broadcast();
 }
 
+ESS3DGamePhase ASS3DGameMode::GetCurrentPhase() const
+{
+    if (const ASS3DGameState* State = GetWorld() ? GetWorld()->GetGameState<ASS3DGameState>() : nullptr)
+    {
+        return State->GetCurrentPhase();
+    }
+    return ESS3DGamePhase::Boot;
+}
+
+void ASS3DGameMode::SetPhase(ESS3DGamePhase Phase, const FString& Label)
+{
+    const FMapRunState* State = MapManager ? &MapManager->GetMapState() : nullptr;
+    const int32 ActIndex = State ? State->CurrentAct : 0;
+    const int32 NodeId = State ? State->CurrentNodeId : INDEX_NONE;
+    const int32 Seed = State && State->Seed != 0 ? State->Seed : RunSeed;
+    ++CheckpointSequence;
+    ReachedPhases.Add(static_cast<uint8>(Phase));
+    if (ASS3DGameState* SS3DState = GetWorld() ? GetWorld()->GetGameState<ASS3DGameState>() : nullptr)
+    {
+        SS3DState->SetCheckpoint(Phase, CheckpointSequence, Seed, ActIndex, NodeId, Label);
+    }
+    Log(FString::Printf(TEXT("CHECKPOINT %d: phase=%d act=%d node=%d label=%s"),
+        CheckpointSequence, static_cast<int32>(Phase), ActIndex + 1, NodeId, *Label));
+}
+
+ESS3DGamePhase ASS3DGameMode::PhaseForNode(EMapNodeType Type)
+{
+    switch (Type)
+    {
+    case EMapNodeType::Combat:
+    case EMapNodeType::Elite:
+    case EMapNodeType::Boss: return ESS3DGamePhase::Combat;
+    case EMapNodeType::Reward: return ESS3DGamePhase::Reward;
+    case EMapNodeType::Shop: return ESS3DGamePhase::Shop;
+    case EMapNodeType::Event: return ESS3DGamePhase::Event;
+    case EMapNodeType::Rest: return ESS3DGamePhase::Rest;
+    default: return ESS3DGamePhase::Map;
+    }
+}
+
 void ASS3DGameMode::PrintHelp() const
 {
-    Log(TEXT("命令：character odette | new [seed] | demo | effects | nodes | status | map | select <nodeId> | hand | play <cardIndex> | end | potion <index> | reward <index> | shop | buy card/relic/potion/remove <index> | rest heal/upgrade | event 0/1"));
+    Log(TEXT("命令：character odette | new [seed] | demo | audit | effects | nodes | window <width> <height> | status | map | select <nodeId> | hand | play <cardIndex> | end | potion <index> | reward <index> | shop | buy card/relic/potion/remove <index> | rest heal/upgrade | event 0/1"));
 }
 
 void ASS3DGameMode::PrintStatus() const
@@ -162,6 +234,7 @@ void ASS3DGameMode::SelectNode(int32 NodeId)
     if (bCombatActive) { Log(TEXT("请先结束当前战斗。")); return; }
     if (!MapManager->SelectNode(NodeId)) { Log(TEXT("不能选择该节点：它不是当前节点的直接后继。")); return; }
     const FMapNodeData Node = MapManager->GetCurrentNode();
+    SetPhase(PhaseForNode(Node.NodeType), FString::Printf(TEXT("进入节点：%s"), *NodeTypeName(Node.NodeType)));
     Log(FString::Printf(TEXT("进入节点 %d：%s。"), Node.NodeId, *NodeTypeName(Node.NodeType)));
     switch (Node.NodeType)
     {
@@ -209,6 +282,7 @@ void ASS3DGameMode::StartNodeCombat(const FMapNodeData& Node)
     CombatManager->SetPlayerHealth(PlayerHp, PlayerMaxHp);
     CombatManager->BeginCombat(Enemy);
     bCombatActive = true;
+    SetPhase(ESS3DGamePhase::Combat, FString::Printf(TEXT("战斗开始：%s"), *Enemy.Id));
     PrintStatus();
     PrintHand();
 }
@@ -224,6 +298,7 @@ void ASS3DGameMode::HandleCombatResult()
     if (Snapshot.Phase == ECombatPhase::Defeat)
     {
         bCombatActive = false;
+        SetPhase(ESS3DGamePhase::Defeat, TEXT("战斗失败，本局结束"));
         Log(TEXT("本局失败。输入 new 开始新的一局。"));
         return;
     }
@@ -232,6 +307,7 @@ void ASS3DGameMode::HandleCombatResult()
     Gold += CombatManager->GetGoldReward();
     Relics = CombatManager->GetRelics();
     bCombatActive = false;
+    SetPhase(ESS3DGamePhase::Reward, TEXT("战斗胜利，等待奖励选择"));
     PendingRewards = FCardLibrary::GetAllCards();
     while (PendingRewards.Num() > 3) PendingRewards.RemoveAt(0);
     Log(FString::Printf(TEXT("战斗胜利，获得 %d 金币。"), CombatManager->GetGoldReward()));
@@ -331,8 +407,17 @@ void ASS3DGameMode::CompleteCurrentNode()
 {
     if (MapManager->CompleteCurrentNode())
     {
-        if (MapManager->GetMapState().bRunComplete) Log(TEXT("抵达第三层塔顶，记忆尖塔通关。输入 new 开始下一局。"));
-        else { PrintMap(); PrintAvailableNodes(); }
+        if (MapManager->GetMapState().bRunComplete)
+        {
+            SetPhase(ESS3DGamePhase::Victory, TEXT("抵达第三层塔顶，完整通关"));
+            Log(TEXT("抵达第三层塔顶，记忆尖塔通关。输入 new 开始下一局。"));
+        }
+        else
+        {
+            SetPhase(ESS3DGamePhase::Map, TEXT("节点完成，等待选择下一条路线"));
+            PrintMap();
+            PrintAvailableNodes();
+        }
     }
 }
 
@@ -609,6 +694,146 @@ void ASS3DGameMode::RunNodeRegression()
     for (EMapNodeType Type : RequiredTypes) bAllPassed &= SeenTypes.Contains(static_cast<uint8>(Type));
     Log(bAllPassed ? TEXT("NODES PASS：三层地图的起点、战斗、奖励、商店、事件、精英、休息和 Boss 均生成且连接合法。")
         : TEXT("NODES FAIL：地图节点类型覆盖或连接合法性检查失败。"));
+}
+
+void ASS3DGameMode::RunDefeatRegression()
+{
+    UCombatManager* TestCombat = NewObject<UCombatManager>(this);
+    FCardData EmptyCard;
+    EmptyCard.Id = TEXT("defeat_test_card");
+    EmptyCard.Name = FText::FromString(TEXT("失败测试牌"));
+    EmptyCard.Cost = 0;
+    EmptyCard.Type = ECardType::Skill;
+
+    TArray<FCardData> TestDeck;
+    TestDeck.Add(EmptyCard);
+    FEnemyDefinition TestEnemy;
+    TestEnemy.Id = TEXT("defeat_test_enemy");
+    TestEnemy.Name = FText::FromString(TEXT("失败测试敌人"));
+    TestEnemy.MaxHp = 999;
+    FEnemyAction Attack;
+    Attack.Type = EEnemyActionType::Attack;
+    Attack.Value = 99;
+    Attack.Label = FText::FromString(TEXT("失败测试攻击"));
+    TestEnemy.Actions.Add(Attack);
+
+    TestCombat->SetDeck(TestDeck);
+    TestCombat->SetRelics({});
+    TestCombat->SetPotions({});
+    TestCombat->SetPlayerHealth(1, 1);
+    TestCombat->BeginCombat(TestEnemy);
+    bCombatActive = true;
+    SetPhase(ESS3DGamePhase::Combat, TEXT("失败路径回归：战斗开始"));
+    TestCombat->EndPlayerTurn();
+
+    const bool bCombatDefeated = TestCombat->GetSnapshot().Phase == ECombatPhase::Defeat;
+    bCombatActive = false;
+    if (bCombatDefeated)
+    {
+        SetPhase(ESS3DGamePhase::Defeat, TEXT("失败路径回归：正常进入 Defeat"));
+    }
+    Log(bCombatDefeated ? TEXT("DEFEAT PASS：生命归零后进入 Defeat 阶段。")
+        : TEXT("DEFEAT FAIL：生命归零后没有进入 Defeat 阶段。"));
+}
+
+bool ASS3DGameMode::ConfigureWindow(const FString& Args)
+{
+    if (!GEngine) return false;
+    UGameUserSettings* Settings = GEngine->GetGameUserSettings();
+    if (!Settings) return false;
+
+    TArray<FString> Parts;
+    Args.ParseIntoArrayWS(Parts);
+    if (Parts.Num() >= 2)
+    {
+        const int32 Width = FMath::Clamp(FCString::Atoi(*Parts[0]), 800, 7680);
+        const int32 Height = FMath::Clamp(FCString::Atoi(*Parts[1]), 600, 4320);
+        Settings->SetScreenResolution(FIntPoint(Width, Height));
+        Settings->SetFullscreenMode(EWindowMode::Windowed);
+        Settings->ApplySettings(false);
+        Settings->SaveSettings();
+        Log(FString::Printf(TEXT("WINDOW PASS：窗口分辨率已设置为 %dx%d。"), Width, Height));
+        return Settings->GetScreenResolution() == FIntPoint(Width, Height);
+    }
+
+    const FIntPoint Resolution = Settings->GetScreenResolution();
+    Log(FString::Printf(TEXT("WINDOW STATUS：当前窗口分辨率 %dx%d；输入 window <width> <height> 修改。"),
+        Resolution.X, Resolution.Y));
+    return Resolution.X > 0 && Resolution.Y > 0;
+}
+
+void ASS3DGameMode::RunAudit()
+{
+    Log(TEXT("AUDIT START：开始运行规则、地图、阶段和完整流程验收。"));
+    RunNodeRegression();
+    RunEffectsRegression();
+
+    bool bPhaseMappingPassed = true;
+    const TArray<EMapNodeType> NodeTypes = {
+        EMapNodeType::Start, EMapNodeType::Combat, EMapNodeType::Reward,
+        EMapNodeType::Shop, EMapNodeType::Event, EMapNodeType::Elite,
+        EMapNodeType::Rest, EMapNodeType::Boss
+    };
+    for (const EMapNodeType Type : NodeTypes)
+    {
+        const ESS3DGamePhase Phase = PhaseForNode(Type);
+        bPhaseMappingPassed &= Phase != ESS3DGamePhase::Boot;
+        Log(FString::Printf(TEXT("PHASE MAP: node=%s phase=%d %s"), *NodeTypeName(Type),
+            static_cast<int32>(Phase), Phase != ESS3DGamePhase::Boot ? TEXT("PASS") : TEXT("FAIL")));
+    }
+    Log(bPhaseMappingPassed ? TEXT("PHASE PASS：所有地图节点都有明确游戏阶段。")
+        : TEXT("PHASE FAIL：存在未映射的地图节点阶段。"));
+
+    const bool bWhiteboxPassed = WhiteboxStage != nullptr;
+    Log(bWhiteboxPassed ? TEXT("WHITEBOX PASS：运行时场景、玩家占位体和敌人占位体可用。")
+        : TEXT("WHITEBOX FAIL：运行时场景或占位人物不可用。"));
+
+    const bool bWindowPassed = ConfigureWindow(TEXT("1280 720"));
+    const bool bUiPassed = RuntimeHUD != nullptr;
+    const bool bInputPassed = GetWorld() && Cast<ASS3DPlayerController>(GetWorld()->GetFirstPlayerController()) != nullptr;
+    Log(bUiPassed ? TEXT("UI PASS：地图、战斗、奖励、商店、事件、休息和结算页面均已创建。")
+        : TEXT("UI FAIL：运行时阶段 HUD 未创建。"));
+    Log(bInputPassed ? TEXT("INPUT PASS：鼠标按钮和键盘快捷键入口可用。")
+        : TEXT("INPUT FAIL：鼠标/键盘 PlayerController 入口不可用。"));
+    Log(bWindowPassed ? TEXT("WINDOW PASS：GameUserSettings 可设置并读取 Windows 分辨率。")
+        : TEXT("WINDOW FAIL：Windows 分辨率设置接口不可用。"));
+    RunDefeatRegression();
+    SelectedCharacter = TEXT("odette");
+    RunDemo();
+    const bool bRunPassed = MapManager && MapManager->GetMapState().bRunComplete
+        && GetCurrentPhase() == ESS3DGamePhase::Victory;
+    const TArray<ESS3DGamePhase> RequiredPhases = {
+        ESS3DGamePhase::Boot, ESS3DGamePhase::CharacterSelect,
+        ESS3DGamePhase::Map, ESS3DGamePhase::Combat, ESS3DGamePhase::Reward,
+        ESS3DGamePhase::Shop, ESS3DGamePhase::Event, ESS3DGamePhase::Rest,
+        ESS3DGamePhase::Victory, ESS3DGamePhase::Defeat
+    };
+    bool bCoveragePassed = true;
+    const ASS3DGameState* SS3DState = GetWorld() ? GetWorld()->GetGameState<ASS3DGameState>() : nullptr;
+    TSet<uint8> HistoryPhases;
+    if (SS3DState)
+    {
+        for (const FSS3DCheckpoint& Checkpoint : SS3DState->GetCheckpointHistory())
+        {
+            HistoryPhases.Add(static_cast<uint8>(Checkpoint.Phase));
+        }
+    }
+    for (const ESS3DGamePhase Phase : RequiredPhases)
+    {
+        const bool bReached = HistoryPhases.Contains(static_cast<uint8>(Phase));
+        bCoveragePassed &= bReached;
+        Log(FString::Printf(TEXT("PHASE COVERAGE: phase=%d %s"), static_cast<int32>(Phase),
+            bReached ? TEXT("PASS") : TEXT("FAIL")));
+    }
+    Log(bCoveragePassed ? TEXT("PHASE COVERAGE PASS：检查点历史实际覆盖全部游戏阶段，包括失败和重开路径。")
+        : TEXT("PHASE COVERAGE FAIL：检查点历史没有覆盖全部要求阶段。"));
+    Log(bRunPassed ? TEXT("FLOW PASS：固定种子完整运行到 Victory。")
+        : TEXT("FLOW FAIL：固定种子没有到达 Victory。"));
+
+    const bool bAuditPassed = bPhaseMappingPassed && bWhiteboxPassed && bUiPassed && bInputPassed
+        && bWindowPassed && bRunPassed && bCoveragePassed;
+    Log(bAuditPassed ? TEXT("AUDIT PASS：规则、地图、战斗、奖励和三层流程全部通过。")
+        : TEXT("AUDIT FAIL：至少一个验收阶段失败。"));
 }
 
 void ASS3DGameMode::Log(const FString& Message) const

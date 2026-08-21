@@ -1,0 +1,113 @@
+[2026.08.21-04.35.13:985][  0]LogTemp: Display: [SS3D] CHECKPOINT 1: phase=0 act=1 node=-1 label=游戏启动
+[2026.08.21-04.35.13:985][  0]LogTemp: Display: [SS3D] WHITEBOX PASS：白膜战斗场景和占位人物已生成。
+[2026.08.21-04.35.13:986][  0]LogTemp: Display: [SS3D] UI PASS：运行时阶段 HUD 已创建。
+[2026.08.21-04.35.13:986][  0]LogTemp: Display: [SS3D] INPUT PASS：鼠标交互和键盘快捷键已绑定。
+[2026.08.21-04.35.13:986][  0]LogTemp: Display: [SS3D] CHECKPOINT 2: phase=1 act=1 node=-1 label=等待选择角色
+[2026.08.21-04.35.14:577][  0]LogTemp: Display: [SS3D] NODES PASS：三层地图的起点、战斗、奖励、商店、事件、精英、休息和 Boss 均生成且连接合法。
+[2026.08.21-04.35.14:577][  0]LogTemp: Display: [SS3D] EFFECT Vulnerable increases damage: PASS
+[2026.08.21-04.35.14:577][  0]LogTemp: Display: [SS3D] EFFECT Weak reduces enemy attack: PASS
+[2026.08.21-04.35.14:577][  0]LogTemp: Display: [SS3D] EFFECT Poison ticks and decays: PASS
+[2026.08.21-04.35.14:577][  0]LogTemp: Display: [SS3D] EFFECT Enemy Buff grants strength: PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] EFFECT Potion kill triggers victory relic: PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] EFFECT Weak/Vulnerable card is available: PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] EFFECT Poison card is available: PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] EFFECTS PASS：易伤、虚弱、中毒、敌方 Buff、药水击杀和胜利藏品均正常。
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] PHASE MAP: node=起点 phase=2 PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] PHASE MAP: node=战斗 phase=3 PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] PHASE MAP: node=奖励 phase=4 PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] PHASE MAP: node=商店 phase=5 PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] PHASE MAP: node=事件 phase=6 PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] PHASE MAP: node=精英 phase=3 PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] PHASE MAP: node=休息 phase=7 PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] PHASE MAP: node=Boss phase=3 PASS
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] PHASE PASS：所有地图节点都有明确游戏阶段。
+[2026.08.21-04.35.14:578][  0]LogTemp: Display: [SS3D] WHITEBOX PASS：运行时场景、玩家占位体和敌人占位体可用。
+[2026.08.21-04.35.14:799][  0]LogTemp: Display: [SS3D] WINDOW PASS：窗口分辨率已设置为 1280x720。
+[2026.08.21-04.35.14:799][  0]LogTemp: Display: [SS3D] UI PASS：地图、战斗、奖励、商店、事件、休息和结算页面均已创建。
+[2026.08.21-04.35.14:799][  0]LogTemp: Display: [SS3D] INPUT PASS：鼠标按钮和键盘快捷键入口可用。
+[2026.08.21-04.35.14:799][  0]LogTemp: Display: [SS3D] WINDOW PASS：GameUserSettings 可设置并读取 Windows 分辨率。
+[2026.08.21-04.35.14:799][  0]LogTemp: Display: [SS3D] CHECKPOINT 3: phase=3 act=1 node=-1 label=失败路径回归：战斗开始
+[2026.08.21-04.35.14:799][  0]LogTemp: Display: [SS3D] CHECKPOINT 4: phase=9 act=1 node=-1 label=失败路径回归：正常进入 Defeat
+[2026.08.21-04.35.14:800][  0]LogTemp: Display: [SS3D] DEFEAT PASS：生命归零后进入 Defeat 阶段。
+[2026.08.21-04.35.14:800][  0]LogTemp: Display: [SS3D] CHECKPOINT 1: phase=2 act=1 node=0 label=新的一局已开始，等待选择地图节点
+[2026.08.21-04.35.14:800][  0]LogTemp: Display: [SS3D] CHECKPOINT 2: phase=4 act=1 node=2 label=进入节点：奖励
+[2026.08.21-04.35.14:801][  0]LogTemp: Display: [SS3D] CHECKPOINT 3: phase=2 act=1 node=2 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:801][  0]LogTemp: Display: [SS3D] CHECKPOINT 4: phase=3 act=1 node=5 label=进入节点：战斗
+[2026.08.21-04.35.14:802][  0]LogTemp: Display: [SS3D] CHECKPOINT 5: phase=3 act=1 node=5 label=战斗开始：shard
+[2026.08.21-04.35.14:802][  0]LogTemp: Display: [SS3D] CHECKPOINT 6: phase=4 act=1 node=5 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:802][  0]LogTemp: Display: [SS3D] CHECKPOINT 7: phase=2 act=1 node=5 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:803][  0]LogTemp: Display: [SS3D] CHECKPOINT 8: phase=6 act=1 node=8 label=进入节点：事件
+[2026.08.21-04.35.14:803][  0]LogTemp: Display: [SS3D] CHECKPOINT 9: phase=2 act=1 node=8 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:804][  0]LogTemp: Display: [SS3D] CHECKPOINT 10: phase=6 act=1 node=10 label=进入节点：事件
+[2026.08.21-04.35.14:804][  0]LogTemp: Display: [SS3D] CHECKPOINT 11: phase=2 act=1 node=10 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:805][  0]LogTemp: Display: [SS3D] CHECKPOINT 12: phase=3 act=1 node=13 label=进入节点：战斗
+[2026.08.21-04.35.14:805][  0]LogTemp: Display: [SS3D] CHECKPOINT 13: phase=3 act=1 node=13 label=战斗开始：shard
+[2026.08.21-04.35.14:806][  0]LogTemp: Display: [SS3D] CHECKPOINT 14: phase=4 act=1 node=13 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:806][  0]LogTemp: Display: [SS3D] CHECKPOINT 15: phase=2 act=1 node=13 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:806][  0]LogTemp: Display: [SS3D] CHECKPOINT 16: phase=3 act=1 node=16 label=进入节点：战斗
+[2026.08.21-04.35.14:806][  0]LogTemp: Display: [SS3D] CHECKPOINT 17: phase=3 act=1 node=16 label=战斗开始：shard
+[2026.08.21-04.35.14:807][  0]LogTemp: Display: [SS3D] CHECKPOINT 18: phase=4 act=1 node=16 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:807][  0]LogTemp: Display: [SS3D] CHECKPOINT 19: phase=2 act=1 node=16 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:808][  1]LogTemp: Display: [SS3D] CHECKPOINT 20: phase=3 act=1 node=17 label=进入节点：Boss
+[2026.08.21-04.35.14:808][  1]LogTemp: Display: [SS3D] CHECKPOINT 21: phase=3 act=1 node=17 label=战斗开始：memory_keeper
+[2026.08.21-04.35.14:810][  1]LogTemp: Display: [SS3D] CHECKPOINT 22: phase=4 act=1 node=17 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:810][  1]LogTemp: Display: [SS3D] CHECKPOINT 23: phase=2 act=2 node=18 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:811][  1]LogTemp: Display: [SS3D] CHECKPOINT 24: phase=7 act=2 node=20 label=进入节点：休息
+[2026.08.21-04.35.14:811][  1]LogTemp: Display: [SS3D] CHECKPOINT 25: phase=2 act=2 node=20 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:811][  1]LogTemp: Display: [SS3D] CHECKPOINT 26: phase=3 act=2 node=23 label=进入节点：战斗
+[2026.08.21-04.35.14:811][  1]LogTemp: Display: [SS3D] CHECKPOINT 27: phase=3 act=2 node=23 label=战斗开始：shard
+[2026.08.21-04.35.14:812][  1]LogTemp: Display: [SS3D] CHECKPOINT 28: phase=4 act=2 node=23 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:812][  1]LogTemp: Display: [SS3D] CHECKPOINT 29: phase=2 act=2 node=23 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:812][  1]LogTemp: Display: [SS3D] CHECKPOINT 30: phase=3 act=2 node=26 label=进入节点：战斗
+[2026.08.21-04.35.14:812][  1]LogTemp: Display: [SS3D] CHECKPOINT 31: phase=3 act=2 node=26 label=战斗开始：shard
+[2026.08.21-04.35.14:812][  1]LogTemp: Display: [SS3D] CHECKPOINT 32: phase=4 act=2 node=26 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:812][  1]LogTemp: Display: [SS3D] CHECKPOINT 33: phase=2 act=2 node=26 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:813][  1]LogTemp: Display: [SS3D] CHECKPOINT 34: phase=5 act=2 node=29 label=进入节点：商店
+[2026.08.21-04.35.14:813][  1]LogTemp: Display: [SS3D] CHECKPOINT 35: phase=2 act=2 node=29 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:813][  1]LogTemp: Display: [SS3D] CHECKPOINT 36: phase=6 act=2 node=31 label=进入节点：事件
+[2026.08.21-04.35.14:813][  1]LogTemp: Display: [SS3D] CHECKPOINT 37: phase=2 act=2 node=31 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:814][  1]LogTemp: Display: [SS3D] CHECKPOINT 38: phase=3 act=2 node=34 label=进入节点：战斗
+[2026.08.21-04.35.14:814][  1]LogTemp: Display: [SS3D] CHECKPOINT 39: phase=3 act=2 node=34 label=战斗开始：shard
+[2026.08.21-04.35.14:814][  1]LogTemp: Display: [SS3D] CHECKPOINT 40: phase=4 act=2 node=34 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:814][  1]LogTemp: Display: [SS3D] CHECKPOINT 41: phase=2 act=2 node=34 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:815][  1]LogTemp: Display: [SS3D] CHECKPOINT 42: phase=3 act=2 node=35 label=进入节点：Boss
+[2026.08.21-04.35.14:815][  1]LogTemp: Display: [SS3D] CHECKPOINT 43: phase=3 act=2 node=35 label=战斗开始：broken_clock
+[2026.08.21-04.35.14:816][  1]LogTemp: Display: [SS3D] CHECKPOINT 44: phase=4 act=2 node=35 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:816][  1]LogTemp: Display: [SS3D] CHECKPOINT 45: phase=2 act=3 node=36 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:816][  1]LogTemp: Display: [SS3D] CHECKPOINT 46: phase=3 act=3 node=38 label=进入节点：战斗
+[2026.08.21-04.35.14:816][  1]LogTemp: Display: [SS3D] CHECKPOINT 47: phase=3 act=3 node=38 label=战斗开始：shard
+[2026.08.21-04.35.14:817][  1]LogTemp: Display: [SS3D] CHECKPOINT 48: phase=4 act=3 node=38 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:817][  1]LogTemp: Display: [SS3D] CHECKPOINT 49: phase=2 act=3 node=38 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:817][  1]LogTemp: Display: [SS3D] CHECKPOINT 50: phase=3 act=3 node=40 label=进入节点：战斗
+[2026.08.21-04.35.14:817][  1]LogTemp: Display: [SS3D] CHECKPOINT 51: phase=3 act=3 node=40 label=战斗开始：shard
+[2026.08.21-04.35.14:818][  1]LogTemp: Display: [SS3D] CHECKPOINT 52: phase=4 act=3 node=40 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:818][  1]LogTemp: Display: [SS3D] CHECKPOINT 53: phase=2 act=3 node=40 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:819][  1]LogTemp: Display: [SS3D] CHECKPOINT 54: phase=6 act=3 node=43 label=进入节点：事件
+[2026.08.21-04.35.14:819][  1]LogTemp: Display: [SS3D] CHECKPOINT 55: phase=2 act=3 node=43 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:819][  1]LogTemp: Display: [SS3D] CHECKPOINT 56: phase=7 act=3 node=45 label=进入节点：休息
+[2026.08.21-04.35.14:819][  1]LogTemp: Display: [SS3D] CHECKPOINT 57: phase=2 act=3 node=45 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:820][  1]LogTemp: Display: [SS3D] CHECKPOINT 58: phase=4 act=3 node=47 label=进入节点：奖励
+[2026.08.21-04.35.14:820][  1]LogTemp: Display: [SS3D] CHECKPOINT 59: phase=2 act=3 node=47 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:820][  1]LogTemp: Display: [SS3D] CHECKPOINT 60: phase=3 act=3 node=49 label=进入节点：战斗
+[2026.08.21-04.35.14:820][  1]LogTemp: Display: [SS3D] CHECKPOINT 61: phase=3 act=3 node=49 label=战斗开始：shard
+[2026.08.21-04.35.14:821][  1]LogTemp: Display: [SS3D] CHECKPOINT 62: phase=4 act=3 node=49 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:821][  1]LogTemp: Display: [SS3D] CHECKPOINT 63: phase=2 act=3 node=49 label=节点完成，等待选择下一条路线
+[2026.08.21-04.35.14:821][  1]LogTemp: Display: [SS3D] CHECKPOINT 64: phase=3 act=3 node=50 label=进入节点：Boss
+[2026.08.21-04.35.14:821][  1]LogTemp: Display: [SS3D] CHECKPOINT 65: phase=3 act=3 node=50 label=战斗开始：tower_core
+[2026.08.21-04.35.14:822][  1]LogTemp: Display: [SS3D] CHECKPOINT 66: phase=4 act=3 node=50 label=战斗胜利，等待奖励选择
+[2026.08.21-04.35.14:822][  1]LogTemp: Display: [SS3D] CHECKPOINT 67: phase=8 act=3 node=50 label=抵达第三层塔顶，完整通关
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] DEMO PASS：三层尖塔完整通关。
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] PHASE COVERAGE: phase=0 PASS
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] PHASE COVERAGE: phase=1 PASS
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] PHASE COVERAGE: phase=2 PASS
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] PHASE COVERAGE: phase=3 PASS
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] PHASE COVERAGE: phase=4 PASS
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] PHASE COVERAGE: phase=5 PASS
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] PHASE COVERAGE: phase=6 PASS
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] PHASE COVERAGE: phase=7 PASS
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] PHASE COVERAGE: phase=8 PASS
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] PHASE COVERAGE: phase=9 PASS
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] PHASE COVERAGE PASS：检查点历史实际覆盖全部游戏阶段，包括失败和重开路径。
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] FLOW PASS：固定种子完整运行到 Victory。
+[2026.08.21-04.35.14:823][  1]LogTemp: Display: [SS3D] AUDIT PASS：规则、地图、战斗、奖励和三层流程全部通过。
+[2026.08.21-04.35.15:888][  1]LogExit: Exiting.

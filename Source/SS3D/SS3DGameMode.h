@@ -8,11 +8,14 @@
 #include "CombatManager.h"
 #include "PotionLibrary.h"
 #include "RelicLibrary.h"
+#include "Core/SS3DTypes.h"
 #include "SS3DGameMode.generated.h"
 
 DECLARE_MULTICAST_DELEGATE(FOnSS3DGameStateChanged);
 
 class USBattleHUD;
+class ASS3DGameState;
+class ASS3DWhiteboxStage;
 
 UCLASS()
 class SS3D_API ASS3DGameMode : public AGameModeBase
@@ -27,6 +30,8 @@ public:
     void RunDemo();
     void RunEffectsRegression();
     void RunNodeRegression();
+    void RunDefeatRegression();
+    void RunAudit();
 
     UMapManager* GetMapManager() const { return MapManager; }
     const FMapRunState& GetMapState() const { return MapManager->GetMapState(); }
@@ -43,6 +48,7 @@ public:
     int32 GetGold() const { return Gold; }
     bool IsRunStarted() const { return bRunStarted; }
     bool IsCombatActive() const { return bCombatActive; }
+    ESS3DGamePhase GetCurrentPhase() const;
 
     FOnSS3DGameStateChanged OnStateChanged;
 
@@ -55,6 +61,9 @@ private:
 
     UPROPERTY()
     TObjectPtr<USBattleHUD> RuntimeHUD;
+
+    UPROPERTY()
+    TObjectPtr<ASS3DWhiteboxStage> WhiteboxStage;
 
     TArray<FCardData> Deck;
     TArray<FRelicData> Relics;
@@ -70,9 +79,12 @@ private:
     FString SelectedCharacter;
     bool bRunStarted = false;
     bool bCombatActive = false;
+    int32 CheckpointSequence = 0;
+    TSet<uint8> ReachedPhases;
 
     void ExecuteCommandInternal(const FString& CommandLine);
     void NotifyStateChanged();
+    void SetPhase(ESS3DGamePhase Phase, const FString& Label);
     void StartRun(int32 Seed);
     void PrintStatus() const;
     void PrintMap() const;
@@ -87,9 +99,11 @@ private:
     void BuyShopItem(const FString& Args);
     void HandleRest(const FString& Args);
     void HandleEvent(const FString& Args);
+    bool ConfigureWindow(const FString& Args);
     void CompleteCurrentNode();
     void GrantRelic(const FRelicData& Relic);
     void Log(const FString& Message) const;
     static FString NodeTypeName(EMapNodeType Type);
     static FString PhaseName(ECombatPhase Phase);
+    static ESS3DGamePhase PhaseForNode(EMapNodeType Type);
 };

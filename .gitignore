@@ -55,3 +55,6 @@ StagedBuild/
 
 # AI generated temp
 *.prompt.md
+
+# Local-only model source files and restricted test assets
+Local/

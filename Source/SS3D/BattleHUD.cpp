@@ -541,6 +541,17 @@ void USBattleHUD::RefreshMainPanel()
         return;
     }
 
+    if (GameMode->GetCurrentPhase() == ESS3DGamePhase::Victory)
+    {
+        ShowVictory();
+        return;
+    }
+    if (GameMode->GetCurrentPhase() == ESS3DGamePhase::Defeat)
+    {
+        ShowDefeat();
+        return;
+    }
+
     const FMapNodeData CurrentNode = GameMode->GetMapManager()->GetCurrentNode();
     if (CurrentNode.NodeType == EMapNodeType::Rest && !CurrentNode.bCompleted)
     {
@@ -734,6 +745,20 @@ void USBattleHUD::ShowShop()
     }
 
     AddButton(MainContent, FText::FromString(TEXT("离开商店")), [this]() { ExecuteCommand(TEXT("buy done")); }, FLinearColor(0.18f, 0.20f, 0.25f, 1.0f));
+}
+
+void USBattleHUD::ShowVictory()
+{
+    AddText(MainContent, FText::FromString(TEXT("通关")), FLinearColor(0.42f, 0.92f, 0.68f), 30, 14.0f);
+    AddText(MainContent, FText::FromString(TEXT("奥黛塔已抵达记忆尖塔顶层。")), FLinearColor(0.84f, 0.90f, 0.94f), 17, 16.0f);
+    AddButton(MainContent, FText::FromString(TEXT("重新开始")), [this]() { ExecuteCommand(TEXT("new 1337")); }, FLinearColor(0.08f, 0.42f, 0.48f, 1.0f));
+}
+
+void USBattleHUD::ShowDefeat()
+{
+    AddText(MainContent, FText::FromString(TEXT("本局失败")), FLinearColor(0.95f, 0.44f, 0.40f), 30, 14.0f);
+    AddText(MainContent, FText::FromString(TEXT("生命归零，当前运行已结束。")), FLinearColor(0.84f, 0.86f, 0.90f), 17, 16.0f);
+    AddButton(MainContent, FText::FromString(TEXT("重新开始")), [this]() { ExecuteCommand(TEXT("new 1337")); }, FLinearColor(0.38f, 0.18f, 0.18f, 1.0f));
 }
 
 void USBattleHUD::StartOdette()

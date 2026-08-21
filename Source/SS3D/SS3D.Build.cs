@@ -5,6 +5,7 @@ public class SS3D : ModuleRules
     public SS3D(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+        PublicIncludePaths.Add(ModuleDirectory);
 
         PublicDependencyModuleNames.AddRange(new[]
         {

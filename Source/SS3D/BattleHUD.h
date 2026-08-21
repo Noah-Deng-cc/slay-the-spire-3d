@@ -61,6 +61,8 @@ private:
     void ShowRest();
     void ShowEvent();
     void ShowShop();
+    void ShowVictory();
+    void ShowDefeat();
     void StartOdette();
 
     static FText NodeTypeLabel(EMapNodeType Type);
